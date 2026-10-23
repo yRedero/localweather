@@ -9,6 +9,7 @@
     "ChunkedGeneratorMixin",
     "ChunkedGeneratorTaskMixin",
     "ConfigMixin",
+    "EffectTintProviderMixin",
     "RendererMixin",
     "ShaderMixin"
   ],

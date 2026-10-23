@@ -100,7 +100,8 @@ public final class WeatherSimulator {
 
     public static StormCell spawn(WeatherSavedData data, CellType type, double x, double z, float radius, RandomSource random) {
         StormCell cell = new StormCell(data.nextId(), type, x, z, radius, type.rollIntensity(random),
-                type.rollThunder(random), 0.8F + random.nextFloat() * 0.4F, type.rollLifetime(random));
+                // Storms ride the wind closely: clients drift the clouds with the same wind, so storms stay put among them.
+                type.rollThunder(random), 0.95F + random.nextFloat() * 0.1F, type.rollLifetime(random));
         cell.vx = data.windX() * cell.windFactor;
         cell.vz = data.windZ() * cell.windFactor;
         data.cells.add(cell);
@@ -204,7 +205,7 @@ public final class WeatherSimulator {
                 near.add(copy);
             }
         }
-        PacketDistributor.sendToPlayer(player, new WeatherSyncPayload(data.windX(), data.windZ(), near));
+        PacketDistributor.sendToPlayer(player, new WeatherSyncPayload(moving ? data.windX() : 0.0F, moving ? data.windZ() : 0.0F, near));
     }
 
     private static boolean farFromPlayers(ServerLevel level, StormCell cell) {

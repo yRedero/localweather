@@ -11,6 +11,8 @@ NeoForge 1.21.1 mod that replaces global weather with **storm cells**: discs of 
   - *Local coverage*: every cloud sample gets its own cloudiness: the fair-weather cover (`cloudCover`, 0.62; Better Clouds uses 0.5) raised to full overcast by storms. A storm's overcast reaches about a third past its rain, and clouds only turn dark where it actually rains. Rain, lightning and clouds all use the same noise-bent storm outline (`StormCell`), so a dark cloud overhead means rain.
   - *Far clouds*: draws clouds out to 2560 blocks (Better Clouds stops at 4x render distance). Beyond `detailDistance` (1536) only every 2nd cloud is generated at twice the size, beyond twice that every 4th at four times; the boundary is dithered so there's no visible ring. Clouds write their own depth with a 16 km range so far clouds sort correctly instead of flickering through each other.
   - *Storm look*: storms are built from normal cloud puffs, each nudged sideways so no faces line up. Thunderstorms grow puff columns up to ~240 blocks out of separate convective cells, with a flat anvil of puffs above; rain adds one puff and lowers the deck; storm clouds are darker and denser. Storm outlines are bent by noise so they aren't circles.
+  - *Weather systems*: a storm's clouds start building about 2.6 radii out, so the sky fills in gradually long before the rain; the sky and fog grey over with it (`ClientLevelMixin`, `FogRendererMixin`). Better Clouds' global darkening by the rain at the camera is toned down, so from inside a storm only the storm clouds are dark.
+  - *Cloud drift*: with local weather, Better Clouds' clouds drift with the storm wind instead of their own random path, so storms move smoothly with the clouds instead of being rebuilt as they travel.
   - *High layer*: a second, flat cloud layer above the normal one that thickens around storms.
   - How: the generator task's sampler and point creation are wrapped (`ChunkedGeneratorTaskMixin`, logic in `CloudGenContext`). Each cloud carries a size, darkness and flat flag packed into its y coordinate (`CloudCode`), which a text patch to Better Clouds' coverage and shading shaders decodes (`BetterCloudsShaderPatch`; if Better Clouds changes those shaders, the patch backs off and only coverage stays). Chunk frustum culling is skipped for far clouds because vanilla's frustum ends at the far plane.
 - Only overworld-like dimensions (sky light, no ceiling) are affected. The network channel is optional, so the mod falls back to vanilla weather when only one side has it.
@@ -33,6 +35,7 @@ Cell types: `shower` (small, short), `rain` (large fronts), `thunderstorm` (ligh
 ./gradlew runClient           # with Better Clouds + YACL from Modrinth
 ./gradlew runClient -PquickPlay="New World"   # straight into a world
 ./gradlew runClient -PquickPlay="New World" -PdevScene   # storms around you, screenshots to run/screenshots, then quits
+./gradlew runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
 ./gradlew runGameTestServer   # gametest/LocalWeatherTests
 ```
 
@@ -40,6 +43,5 @@ Before every client launch (Gradle or IDE), `installClientMods` copies Better Cl
 
 ## Next
 
-1. Make Better Clouds' cloud drift follow the storm wind.
-2. Distant rain shafts under far-away cells, positional thunder.
-3. Config, datapack biome weather profiles, season-mod hooks.
+1. Distant rain shafts under far-away cells, positional thunder.
+2. Config, datapack biome weather profiles, season-mod hooks.

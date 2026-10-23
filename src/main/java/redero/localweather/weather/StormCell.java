@@ -15,8 +15,8 @@ public final class StormCell {
     private static final SimplexNoise SHAPE_NOISE = new SimplexNoise(new LegacyRandomSource(0x5704L));
     /** How far the outline is pushed in or out, as a share of the radius. */
     private static final double WARP = 0.25;
-    /** Overcast reaches this much further than the rain. */
-    private static final float CLOUD_REACH = 1.35F;
+    /** A storm's weather system: clouds start building this many radii out, well before the rain. */
+    private static final float CLOUD_REACH = 2.6F;
 
     public final int id;
     public final CellType type;
@@ -86,18 +86,18 @@ public final class StormCell {
         return Math.sqrt(dx * dx + dz * dz) / radius;
     }
 
-    /** Rain strength at a point: flat core out to 55% of the radius, soft edge after that. */
+    /** Rain strength at a point: heavy core out to 35% of the radius, a long drizzly edge after that. */
     public float rainAt(double px, double pz, int aheadTicks) {
         double d = relativeDistance(px, pz, aheadTicks);
         if (d >= 1.0) return 0.0F;
-        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.55F, 1.0F, (float) d));
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.35F, 1.0F, (float) d));
     }
 
-    /** Cloud cover: the overcast reaches past the rain, so a storm looks bigger than the area it rains on. */
+    /** Cloud cover: builds up slowly from far outside the storm to full overcast over the rain. */
     public float cloudAt(double px, double pz, int aheadTicks) {
         double d = relativeDistance(px, pz, aheadTicks) / CLOUD_REACH;
         if (d >= 1.0) return 0.0F;
-        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.45F, 1.0F, (float) d));
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.2F, 1.0F, (float) d));
     }
 
     /** Thunder is concentrated in a tighter core than the rain. */

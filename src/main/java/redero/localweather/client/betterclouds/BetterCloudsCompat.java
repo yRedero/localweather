@@ -56,8 +56,8 @@ public final class BetterCloudsCompat {
         int ahead = weather.aheadTicks();
         List<StormCell> result = new ArrayList<>();
         for (StormCell cell : weather.cells()) {
-            // Storm overcast and outline noise reach about 1.7 radii from the centre.
-            double reach = blockDistance + cell.radius * 1.7;
+            // A storm's cloud build-up and outline noise reach about 3.3 radii from the centre.
+            double reach = blockDistance + cell.radius * 3.3;
             double dx = cell.centerX(ahead) - cameraX;
             double dz = cell.centerZ(ahead) - cameraZ;
             if (dx * dx + dz * dz < reach * reach && cell.envelope(ahead) > 0.0F) result.add(cell);

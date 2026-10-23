@@ -39,7 +39,7 @@ public final class CloudGenContext implements WeatherView {
     /** Anvil altitude above the cloud base, in blocks. */
     private static final float ANVIL_HEIGHT = 250.0F;
     /** Storm reach used to skip storm maths for samples far from every cell (overcast plus outline noise). */
-    private static final double CELL_REACH = 1.7;
+    private static final double CELL_REACH = 3.3;
     /** Width of the dithered band between detail levels, in blocks. */
     private static final double LOD_BLEND = 300.0;
 

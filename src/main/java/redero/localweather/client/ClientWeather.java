@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import redero.localweather.LocalWeather;
 import redero.localweather.net.WeatherSyncPayload;
 import redero.localweather.weather.LocalWeatherApi;
@@ -36,6 +37,10 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     private Level level;
 
     private float rain, oRain, thunder, oThunder;
+    /** Overcast at the camera, eased like rain: dims sky and fog before the rain arrives. */
+    private float gloom, oGloom;
+    /** How far the storm wind has carried the clouds; Better Clouds' clouds drift by this. */
+    private double windOffsetX, windOffsetZ, oWindOffsetX, oWindOffsetZ;
 
     private ClientWeather() {
     }
@@ -71,15 +76,24 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         if (camera == null) return;
         float targetRain = rainAt(camera.getX(), camera.getZ());
         float targetThunder = thunderAt(camera.getX(), camera.getZ());
+        float targetGloom = cloudAt(camera.getX(), camera.getZ());
         if (snapLevels) {
             rain = targetRain;
             thunder = targetThunder;
+            gloom = targetGloom;
             snapLevels = false;
         }
         oRain = rain;
         oThunder = thunder;
+        oGloom = gloom;
         rain = rain + Mth.clamp(targetRain - rain, -FADE_STEP, FADE_STEP);
         thunder = thunder + Mth.clamp(targetThunder - thunder, -FADE_STEP, FADE_STEP);
+        gloom = gloom + Mth.clamp(targetGloom - gloom, -FADE_STEP, FADE_STEP);
+
+        oWindOffsetX = windOffsetX;
+        oWindOffsetZ = windOffsetZ;
+        windOffsetX += windX;
+        windOffsetZ += windZ;
     }
 
     public void reset() {
@@ -87,6 +101,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         cells = List.of();
         ticksSinceSync = 0;
         rain = oRain = thunder = oThunder = 0.0F;
+        gloom = oGloom = 0.0F;
     }
 
     public boolean active() {
@@ -107,6 +122,28 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     public float cameraThunder() {
         return thunder;
+    }
+
+    /** Overcast at the camera, 0..1, or 0 without local weather. */
+    public float gloom(float partialTick) {
+        return active ? Mth.lerp(partialTick, oGloom, gloom) : 0.0F;
+    }
+
+    /** Greys and dims a sky or fog colour by the overcast, short of what rain itself does. */
+    public static Vec3 gloomy(Vec3 color, float gloom) {
+        if (gloom <= 0.0F) return color;
+        double grey = (color.x * 0.3 + color.y * 0.59 + color.z * 0.11) * 0.8;
+        double t = 0.45 * gloom;
+        double dim = 1.0 - 0.15 * gloom;
+        return new Vec3(Mth.lerp(t, color.x, grey) * dim, Mth.lerp(t, color.y, grey) * dim, Mth.lerp(t, color.z, grey) * dim);
+    }
+
+    public double windOffsetX(float partialTick) {
+        return Mth.lerp(partialTick, oWindOffsetX, windOffsetX);
+    }
+
+    public double windOffsetZ(float partialTick) {
+        return Mth.lerp(partialTick, oWindOffsetZ, windOffsetZ);
     }
 
     @Override
