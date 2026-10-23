@@ -26,7 +26,7 @@ public final class LocalWeatherClientConfig {
                 .defineInRange("cloudDistance", 2560, 512, 6144);
         DETAIL_DISTANCE = b.comment("Clouds are drawn at full detail up to this distance. Beyond it every 2nd cloud is drawn",
                         "at twice the size, and beyond twice this distance every 4th cloud at four times the size.")
-                .defineInRange("detailDistance", 1024, 256, 4096);
+                .defineInRange("detailDistance", 1536, 256, 4096);
 
         STORM_TOWERS = b.comment("Thunderstorms build tall towers of cloud with a flat anvil on top.")
                 .define("stormTowers", true);

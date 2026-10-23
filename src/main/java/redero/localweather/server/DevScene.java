@@ -26,13 +26,15 @@ public final class DevScene {
         place(level, data, CellType.THUNDERSTORM, x + 1800, z, 1200);
         place(level, data, CellType.RAIN, x, z - 2600, 2200);
         place(level, data, CellType.SHOWER, x - 900, z + 300, 500);
+        // A closer one to judge the clouds up close.
+        place(level, data, CellType.THUNDERSTORM, x + 100, z + 1000, 600);
 
         var server = level.getServer();
         level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(false, server);
         level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
         level.setDayTime(6000);
         WeatherSimulator.syncAll(level);
-        LocalWeather.LOGGER.info("Dev scene: thunderstorm east, rain front north, shower west");
+        LocalWeather.LOGGER.info("Dev scene: thunderstorms east and south, rain front north, shower west");
     }
 
     private static void place(ServerLevel level, WeatherSavedData data, CellType type, double x, double z, float radius) {

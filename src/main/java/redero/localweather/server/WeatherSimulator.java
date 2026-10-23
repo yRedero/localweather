@@ -191,10 +191,17 @@ public final class WeatherSimulator {
 
     private static void sync(ServerPlayer player, WeatherSavedData data) {
         if (!player.connection.hasChannel(WeatherSyncPayload.TYPE)) return;
+        // With the weather cycle off cells stand still; a velocity would make clients drift them and snap back.
+        boolean moving = player.serverLevel().getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE);
         List<StormCell> near = new ArrayList<>();
         for (StormCell cell : data.cells) {
             if (horizontalDistance(cell, player.getX(), player.getZ()) < SYNC_RANGE + cell.radius) {
-                near.add(cell.copy());
+                StormCell copy = cell.copy();
+                if (!moving) {
+                    copy.vx = 0.0F;
+                    copy.vz = 0.0F;
+                }
+                near.add(copy);
             }
         }
         PacketDistributor.sendToPlayer(player, new WeatherSyncPayload(data.windX(), data.windZ(), near));

@@ -16,7 +16,7 @@ final class DevSceneClient {
             {"east_thunderstorm", -90.0F, -10.0F},
             {"north_rain_front", 180.0F, -10.0F},
             {"west_shower", 90.0F, -10.0F},
-            {"south_clear", 0.0F, -10.0F},
+            {"south_near_thunderstorm", 0.0F, -12.0F},
             {"up", -60.0F, -70.0F},
     };
     /** Time for Better Clouds to finish generating before the first shot. */

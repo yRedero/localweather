@@ -27,13 +27,26 @@ import redero.localweather.weather.WeatherView;
  * <p>
  * Coordinates passed in are Better Clouds' cloud space: world position minus the drifting cloud origin.
  * Heights are relative to the dimension's cloud height.
+ * <p>
+ * Storm clouds are built from ordinary cloud puffs, each nudged sideways so no two share a face: a column of
+ * puffs for a thunderstorm tower, a flat sheet of puffs for its anvil, one extra puff for a rain deck.
  */
 public final class CloudGenContext implements WeatherView {
     /** Better Clouds' own weather term is 0.5 + 0.3 * weather; storms push coverage further than that. */
     private static final float STORM_GAIN = 0.5F;
-    /** Extra clouds (towers, thick decks, high layer) may use at most this share of Better Clouds' buffer. */
+    /** Extra clouds (towers, decks, high layer) may use at most this share of Better Clouds' buffer. */
     private static final float EXTRA_SHARE = 0.6F;
+    /** Tallest tower above the cloud deck, in blocks. */
+    private static final float TOWER_HEIGHT = 240.0F;
+    /** Anvil altitude above the cloud base, in blocks. */
+    private static final float ANVIL_HEIGHT = 250.0F;
+    /** How far storm outlines are pushed around by noise, in blocks. */
+    private static final double WARP = 350.0;
+    /** Width of the dithered band between detail levels, in blocks. */
+    private static final double LOD_BLEND = 300.0;
+
     private static final SimplexNoise HIGH_NOISE = new SimplexNoise(new LegacyRandomSource(0x4C57L));
+    private static final SimplexNoise STORM_NOISE = new SimplexNoise(new LegacyRandomSource(0x5704L));
 
     private final List<StormCell> cells;
     private final int aheadTicks;
@@ -49,12 +62,14 @@ public final class CloudGenContext implements WeatherView {
     private final int extraBudget;
 
     // Per-sample state. A task samples one point at a time on a single thread.
+    private int sampleX, sampleZ;
     private int step;
     private boolean highOnly;
     private boolean towerGrid;
     private float highStrength;
+    private float rain, thunder, towerShape;
     private int pointsThisSample;
-    private final List<CloudCode> pending = new ArrayList<>(8);
+    private final List<CloudCode> pending = new ArrayList<>(24);
     private int extras;
     /** Dev scene only: per detail step (index 1, 2, 4), samples kept, clouds made, dark clouds. */
     private final int[][] stats = new int[5][3];
@@ -64,7 +79,7 @@ public final class CloudGenContext implements WeatherView {
                             double cameraX, double cameraZ, float otherFactors, Config options) {
         this.cells = cells;
         this.aheadTicks = aheadTicks;
-        this.hasWeather = hasWeather;
+        this.hasWeather = hasWeather && !cells.isEmpty();
         this.originX = originX;
         this.originZ = originZ;
         this.cameraX = cameraX - originX;
@@ -80,7 +95,7 @@ public final class CloudGenContext implements WeatherView {
         this.encode = BetterCloudsShaderPatch.active();
         this.lod = encode && LocalWeatherClientConfig.FAR_CLOUDS.get();
         this.detailDistance = LocalWeatherClientConfig.DETAIL_DISTANCE.get();
-        this.towers = LocalWeatherClientConfig.STORM_TOWERS.get();
+        this.towers = encode && LocalWeatherClientConfig.STORM_TOWERS.get();
         this.darkness = encode && LocalWeatherClientConfig.STORM_DARKNESS.get();
         this.thick = LocalWeatherClientConfig.THICK_RAIN_CLOUDS.get();
         this.high = encode && LocalWeatherClientConfig.HIGH_LAYER.get();
@@ -104,7 +119,7 @@ public final class CloudGenContext implements WeatherView {
         ClientWeather weather = ClientWeather.INSTANCE;
         boolean hasWeather = weather.active() && LocalWeatherApi.managed(level);
         List<StormCell> inView = hasWeather
-                ? new ArrayList<>(BetterCloudsCompat.cellsInView(camera.getX(), camera.getZ(), options.blockDistance()))
+                ? new ArrayList<>(BetterCloudsCompat.cellsInView(camera.getX(), camera.getZ(), options.blockDistance() + (int) WARP))
                 : List.of();
         // Same weather term as Better Clouds' CloudinessProvider, at the camera.
         float cameraWeather = Math.max(0.6F * level.getRainLevel(1.0F), level.getThunderLevel(1.0F));
@@ -119,16 +134,25 @@ public final class CloudGenContext implements WeatherView {
         pointsThisSample = 0;
         highOnly = false;
         highStrength = 0.0F;
+        sampleX = x;
+        sampleZ = z;
         step = lodStep(x, z);
         if (step == 0) return 0.0F;
 
-        if (high && onGrid(x, z, Math.max(2, step))) highStrength = highLayerAt(x, z);
-        // Towers on every 2nd kept point are enough to read as one solid column.
-        towerGrid = onGrid(x, z, step * 2);
         boolean kept = onGrid(x, z, step);
-        if (kept) stats[step][0]++;
-        float value = kept ? sampler.sample(hasWeather ? cloudinessAt(x, z) : cloudiness) : 0.0F;
-        if (value > 0.0F) stats[step][1]++;
+        boolean highGrid = high && onGrid(x, z, Math.max(2, step));
+        if (!kept && !highGrid) return 0.0F;
+
+        stormAt(x, z);
+        towerGrid = onGrid(x, z, Math.max(2, step));
+        if (highGrid) highStrength = highLayerAt(x, z);
+
+        float value = 0.0F;
+        if (kept) {
+            stats[step][0]++;
+            value = sampler.sample(hasWeather ? cloudinessAt(x, z) : cloudiness);
+            if (value > 0.0F) stats[step][1]++;
+        }
         if (value <= 0.0F && highStrength > 0.0F) {
             // A high cloud with nothing below it: let Better Clouds emit one point, which point() moves up.
             highOnly = true;
@@ -143,38 +167,27 @@ public final class CloudGenContext implements WeatherView {
         int size = step;
         if (highOnly) return highCloud(x, z, size);
 
-        double wx = x + originX;
-        double wz = z + originZ;
-        float rain = hasWeather ? rainAt(wx, wz) : 0.0F;
-        float thunder = hasWeather ? thunderAt(wx, wz) : 0.0F;
         float dark = darkness ? Mth.clamp(Math.max(0.85F * thunder, 0.6F * rain), 0.0F, 1.0F) : 0.0F;
         if (dark > 0.1F) stats[step][2]++;
-        // Rain decks hang lower than fair-weather clouds.
-        if (thick) y -= 25.0 * rain;
+        // Rain decks hang a little lower than fair-weather clouds.
+        if (thick) y -= 20.0 * rain;
         // Better Clouds' second, lower puff for very dense samples: no extras on top of it.
         if (pointsThisSample > 1) return new CloudCode(x, y, z, y, y, code(size, dark, false));
 
-        float unit = sizeY * size;
-        if (thick && rain > 0.25F) {
-            queue(x, y - unit * 0.7, z, size, dark, false);
-            if (rain > 0.55F) queue(x, y + unit * 0.8, z, size, dark * 0.8F, false);
+        if (thick && rain > 0.4F) {
+            queue(x, y + sizeY * size * 0.6, z, size, dark * 0.9F, false, 0.35, 1);
         }
-        if (towers && thunder > 0.3F && towerGrid) {
-            int towerSize = Math.max(size, 3);
-            float towerUnit = sizeY * towerSize;
-            int levels = 3 + Math.round(thunder * 9.0F);
+        if (towers && towerGrid && thunder > 0.25F) {
+            int towerSize = Math.max(2, step);
+            double levelStep = sizeY * towerSize * 0.7;
+            int levels = (int) (TOWER_HEIGHT * thunder * towerShape / levelStep);
             for (int i = 1; i <= levels; i++) {
-                queue(x, y + i * towerUnit, z, towerSize, dark * (1.0F - 0.6F * i / levels), false);
+                queue(x, y + i * levelStep, z, towerSize, dark * (1.0F - 0.75F * i / levels), false, 0.3, 10 + i);
             }
-            // Flat anvil spreading out from the top of the tower.
-            double anvilY = y + (levels + 0.6) * towerUnit;
-            double spread = sizeXZ * 2.5;
-            queue(x, anvilY, z, 4, dark * 0.3F, true);
-            queue(x + spread, anvilY, z, 4, dark * 0.25F, true);
-            queue(x - spread, anvilY, z, 4, dark * 0.25F, true);
-            queue(x, anvilY, z + spread, 4, dark * 0.25F, true);
-            queue(x, anvilY, z - spread, 4, dark * 0.25F, true);
-            towerPieces += levels + 5;
+            // The anvil spreads wider than the towers: any point of the storm core gets a flat puff up there.
+            double anvilY = yOffset + ANVIL_HEIGHT + 8.0 * (hash(sampleX, sampleZ, 3) - 0.5);
+            queue(x, anvilY, z, towerSize, dark * 0.25F, true, 0.45, 4);
+            towerPieces += levels + 1;
         }
         if (highStrength > 0.0F) pending.add(highCloud(x, z, size));
 
@@ -208,27 +221,63 @@ public final class CloudGenContext implements WeatherView {
         return point instanceof CloudCode cloud ? cloud.encodedY() : (float) point.minY;
     }
 
-    private CloudCode highCloud(double x, double z, int size) {
+    /**
+     * Rain and thunder for the current sample. Storm outlines are bent by noise so they aren't circles, and the
+     * towers grow out of separate convective cells instead of one even plateau.
+     */
+    private void stormAt(int x, int z) {
+        rain = 0.0F;
+        thunder = 0.0F;
+        towerShape = 0.0F;
+        if (!hasWeather) return;
         double wx = x + originX;
         double wz = z + originZ;
-        float weather = hasWeather ? Math.max(0.6F * rainAt(wx, wz), thunderAt(wx, wz)) : 0.0F;
-        double y = yOffset + highHeight + 20.0 * HIGH_NOISE.getValue(x / 900.0, z / 900.0);
-        return new CloudCode(x, y, z, y, y, code(Math.max(size, 2), 0.4F * weather, true));
+        if (!nearAnyCell(wx, wz)) return;
+        double warpedX = wx + WARP * STORM_NOISE.getValue(wx / 900.0, wz / 900.0);
+        double warpedZ = wz + WARP * STORM_NOISE.getValue(wx / 900.0 + 37.0, wz / 900.0 + 37.0);
+        rain = rainAt(warpedX, warpedZ);
+        thunder = thunderAt(warpedX, warpedZ);
+        if (thunder > 0.0F) {
+            double cellsNoise = STORM_NOISE.getValue(wx / 380.0 + 91.0, wz / 380.0 + 91.0);
+            towerShape = (float) (0.3 + 0.7 * Math.max(0.0, cellsNoise));
+        }
     }
 
-    private void queue(double x, double y, double z, int size, float dark, boolean flat) {
-        pending.add(new CloudCode(x, y, z, y, y, code(size, dark, flat)));
+    private boolean nearAnyCell(double wx, double wz) {
+        for (StormCell cell : cells) {
+            double reach = cell.radius + WARP;
+            if (Mth.square(cell.centerX(aheadTicks) - wx) + Mth.square(cell.centerZ(aheadTicks) - wz) < reach * reach) return true;
+        }
+        return false;
+    }
+
+    private CloudCode highCloud(double x, double z, int size) {
+        float weather = Math.max(0.6F * rain, thunder);
+        double y = yOffset + highHeight + 20.0 * HIGH_NOISE.getValue(x / 900.0, z / 900.0) + 6.0 * (hash(sampleX, sampleZ, 5) - 0.5);
+        return new CloudCode(x, y, z, y, y, code(size, 0.4F * weather, true));
+    }
+
+    /** Adds a stacked cloud, nudged sideways by up to {@code jitter} of its width so faces never line up. */
+    private void queue(double x, double y, double z, int size, float dark, boolean flat, double jitter, int salt) {
+        double width = sizeXZ * size;
+        double px = x + width * jitter * (2.0 * hash(sampleX, sampleZ, salt) - 1.0);
+        double pz = z + width * jitter * (2.0 * hash(sampleX, sampleZ, salt + 1000) - 1.0);
+        pending.add(new CloudCode(px, y, pz, y, y, code(size, dark, flat)));
     }
 
     private int code(int size, float dark, boolean flat) {
         return encode ? CloudCode.encode(size, dark, flat) : 0;
     }
 
-    /** 1 near the camera, 2 and 4 further out (keep every 2nd/4th point, drawn bigger), 0 past the cloud distance. */
+    /**
+     * 1 near the camera, 2 and 4 further out (keep every 2nd/4th point, drawn bigger), 0 past the cloud distance.
+     * The boundaries are dithered per point so there's no visible ring where the cloud size changes.
+     */
     private int lodStep(int x, int z) {
         if (!lod) return 1;
         double d = Math.sqrt(Mth.square(x - cameraX) + Mth.square(z - cameraZ));
         if (d > blockDistance) return 0;
+        d += LOD_BLEND * (hash(gridIndex(x), gridIndex(z), 7) - 0.5);
         if (d > 2.0 * detailDistance) return 4;
         if (d > detailDistance) return 2;
         return 1;
@@ -237,31 +286,41 @@ public final class CloudGenContext implements WeatherView {
     /** Better Clouds samples at floor(grid * spacing); recover the grid index to thin out points evenly. */
     private boolean onGrid(int x, int z, int step) {
         if (step <= 1) return true;
-        int gx = (int) Math.ceil(x / spacing);
-        int gz = (int) Math.ceil(z / spacing);
-        return Math.floorMod(gx, step) == 0 && Math.floorMod(gz, step) == 0;
+        return Math.floorMod(gridIndex(x), step) == 0 && Math.floorMod(gridIndex(z), step) == 0;
+    }
+
+    private int gridIndex(int sample) {
+        return (int) Math.ceil(sample / spacing);
     }
 
     /** High, flat clouds: patchy in clear weather, a near-solid sheet around storms. */
     private float highLayerAt(int x, int z) {
         double n = 0.65 * HIGH_NOISE.getValue(x / 1600.0, z / 1600.0) + 0.35 * HIGH_NOISE.getValue(x / 420.0 + 100.0, z / 420.0);
-        float weather = 0.0F;
-        if (hasWeather) {
-            double wx = x + originX;
-            double wz = z + originZ;
-            weather = Math.max(0.6F * rainAt(wx, wz), thunderAt(wx, wz));
-        }
-        double threshold = 0.45 - 0.5 * weather;
+        float weather = Math.max(0.6F * rain, thunder);
+        double threshold = 0.5 - 0.5 * weather;
         return n > threshold ? (float) Math.min(1.0, (n - threshold) * 3.0) : 0.0F;
     }
 
     /** Cloudiness for one sample: Better Clouds' clear-sky value, raised by the storms over that point. */
     private float cloudinessAt(int x, int z) {
-        double wx = x + originX;
-        double wz = z + originZ;
-        float weather = Math.max(0.6F * rainAt(wx, wz), thunderAt(wx, wz));
+        float weather = Math.max(0.6F * rain, thunder);
+        if (weather > 0.0F) {
+            // Some texture inside the storm so it isn't one flat sheet.
+            weather *= (float) (0.85 + 0.15 * STORM_NOISE.getValue(x / 250.0 + 11.0, z / 250.0 + 11.0));
+        }
         // Never zero: Better Clouds divides by it.
         return Mth.clamp(otherFactors * (0.5F + STORM_GAIN * weather), 0.01F, 1.0F);
+    }
+
+    /** Stable 0..1 value per grid point and purpose. */
+    private static float hash(int x, int z, int salt) {
+        int h = x * 0x27D4EB2D ^ z * 0x165667B1 ^ salt * 0x9E3779B9;
+        h ^= h >>> 15;
+        h *= 0x85EBCA6B;
+        h ^= h >>> 13;
+        h *= 0xC2B2AE35;
+        h ^= h >>> 16;
+        return (h >>> 8) / (float) (1 << 24);
     }
 
     @Override

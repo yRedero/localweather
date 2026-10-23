@@ -13,11 +13,19 @@ import redero.localweather.LocalWeather;
 /**
  * Text patches for Better Clouds' coverage and shading shaders, so each cloud can carry a size, a storm
  * darkness and a "flat" flag. They travel in the cloud's y coordinate, see {@link CloudCode}.
- * Both shaders are patched or neither: a half-patched pair would draw clouds in the wrong place.
+ * <p>
+ * Clouds past the camera's far plane all get depth 1.0 under Better Clouds' depth clamp, so they can't be
+ * sorted and flicker through each other. The coverage pass therefore writes its own depth with a far range
+ * of {@code LW_FAR}, and the shading pass converts it back to the game's depth when it copies it out.
+ * <p>
+ * All three shaders are patched or none: a partial patch would put clouds in the wrong place.
  */
 public final class BetterCloudsShaderPatch {
     private static final String COVERAGE_VSH = "shaders/core/betterclouds_coverage.vsh";
+    private static final String COVERAGE_FSH = "shaders/core/betterclouds_coverage.fsh";
     private static final String SHADING_FSH = "shaders/core/betterclouds_shading.fsh";
+    /** Near and far plane of the clouds' own depth. Clouds closer than a few blocks are faded out anyway. */
+    private static final String DEPTH_RANGE = "const float LW_NEAR = 4.0; const float LW_FAR = 16384.0;";
 
     private static final String[][] COVERAGE = {
             {"layout(location = 0) in vec3 in_pos;", "layout(location = 0) in vec3 lw_in_pos;"},
@@ -41,7 +49,25 @@ public final class BetterCloudsShaderPatch {
                     "pass_color.b = (lw_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"},
     };
 
+    private static final String[][] COVERAGE_DEPTH = {
+            {"if(min(gl_FragCoord.z, 1.0) > depth) discard;", """
+                    if(min(gl_FragCoord.z, 1.0) > depth) discard;
+                        // Local Weather: depth from view distance with a long range, so far clouds still sort.
+                        %s
+                        float lw_w = 1.0 / gl_FragCoord.w;
+                        gl_FragDepth = clamp(((LW_FAR + LW_NEAR) - 2.0 * LW_FAR * LW_NEAR / lw_w) / (LW_FAR - LW_NEAR) * 0.5 + 0.5, 0.0, 1.0);""".formatted(DEPTH_RANGE)},
+    };
+
     private static final String[][] SHADING = {
+            {"gl_FragDepth = texelFetch(u_depth_texture, ivec2(gl_FragCoord.xy), 0).r;", """
+                    float lw_d = texelFetch(u_depth_texture, ivec2(gl_FragCoord.xy), 0).r;
+                        // Local Weather: back from the clouds' long depth range to the game's (u_depth_range = near, far).
+                        %s
+                        float lw_z = 2.0 * LW_FAR * LW_NEAR / ((LW_FAR + LW_NEAR) - (2.0 * lw_d - 1.0) * (LW_FAR - LW_NEAR));
+                        float lw_gn = u_depth_range.x;
+                        float lw_gf = u_depth_range.y;
+                        gl_FragDepth = lw_d >= 1.0 || lw_gf <= lw_gn ? lw_d
+                            : clamp(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_z) / (lw_gf - lw_gn) * 0.5 + 0.5, 0.0, 1.0);""".formatted(DEPTH_RANGE)},
             {"vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;", """
                     vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;
                         // Local Weather: the blue channel holds 8 darkness steps with the colour noise inside each step.
@@ -52,7 +78,7 @@ public final class BetterCloudsShaderPatch {
                         color_lumi *= u_color_grading.x;"""},
             // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds.
             {"out_color.a *= u_opacity.y;", """
-                    out_color.a = mix(out_color.a, sqrt(out_color.a), min(lw_dark, 1.0));
+                    out_color.a = mix(out_color.a, sqrt(out_color.a), 0.6 * min(lw_dark, 1.0));
                         out_color.a *= u_opacity.y;"""},
     };
 
@@ -71,12 +97,15 @@ public final class BetterCloudsShaderPatch {
         String[][] edits;
         if (id.getPath().equals(COVERAGE_VSH)) {
             edits = COVERAGE;
+        } else if (id.getPath().equals(COVERAGE_FSH)) {
+            edits = COVERAGE_DEPTH;
         } else if (id.getPath().equals(SHADING_FSH)) {
             edits = SHADING;
         } else {
             return source;
         }
-        boolean ok = anchorsPresent(resources, COVERAGE_VSH, COVERAGE) && anchorsPresent(resources, SHADING_FSH, SHADING);
+        boolean ok = anchorsPresent(resources, COVERAGE_VSH, COVERAGE) && anchorsPresent(resources, COVERAGE_FSH, COVERAGE_DEPTH)
+                && anchorsPresent(resources, SHADING_FSH, SHADING);
         active = ok;
         if (!ok) {
             LocalWeather.LOGGER.warn("Better Clouds shaders changed, storm cloud sizes and darkness are disabled");
