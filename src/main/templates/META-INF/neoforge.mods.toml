@@ -15,6 +15,10 @@ Built as a companion to Better Clouds.
 [[mixins]]
 config="${mod_id}.mixins.json"
 
+# Only applies when Better Clouds is installed, see BetterCloudsMixinPlugin.
+[[mixins]]
+config="${mod_id}.betterclouds.mixins.json"
+
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"
@@ -32,6 +36,6 @@ config="${mod_id}.mixins.json"
 [[dependencies.${mod_id}]]
     modId="betterclouds"
     type="optional"
-    versionRange="*"
+    versionRange="${betterclouds_version_range}"
     ordering="AFTER"
     side="CLIENT"

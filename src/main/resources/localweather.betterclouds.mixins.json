@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "redero.localweather.compat.mixin",
+  "plugin": "redero.localweather.compat.BetterCloudsMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ChunkedGeneratorMixin",
+    "ChunkedGeneratorTaskMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
