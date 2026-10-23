@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
+import redero.localweather.LocalWeather;
 import redero.localweather.net.WeatherSyncPayload;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
@@ -44,7 +45,10 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         windX = payload.windX();
         windZ = payload.windZ();
         ticksSinceSync = 0;
-        if (!active) snapLevels = true;
+        if (!active) {
+            snapLevels = true;
+            LocalWeather.LOGGER.info("Local weather active, {} storm cells nearby", cells.size());
+        }
         active = true;
         level = Minecraft.getInstance().level;
     }

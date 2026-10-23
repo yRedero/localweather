@@ -108,6 +108,14 @@ public final class WeatherSimulator {
         return cell;
     }
 
+    /**
+     * Commands put storms right on top of players, so they start at full strength. Natural cells form far
+     * upwind and have minutes to build up before they arrive.
+     */
+    public static void skipForming(StormCell cell) {
+        cell.age = cell.lifetime * 15 / 100;
+    }
+
     /** /weather rain|thunder puts a cell on every player; /weather clear removes all cells. */
     public static void applyWeatherCommand(ServerLevel level, int duration, boolean raining, boolean thundering) {
         WeatherSavedData data = WeatherSavedData.get(level);
@@ -117,8 +125,7 @@ public final class WeatherSimulator {
             CellType type = thundering ? CellType.THUNDERSTORM : CellType.RAIN;
             for (ServerPlayer player : level.players()) {
                 StormCell cell = spawn(data, type, player.getX(), player.getZ(), type.rollRadius(level.random), level.random);
-                // Skip the forming stage so the command takes effect right away.
-                cell.age = cell.lifetime * 15 / 100;
+                skipForming(cell);
                 if (duration > 0) cell.lifetime = cell.age + duration;
             }
         }

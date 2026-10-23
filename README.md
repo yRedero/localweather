@@ -26,6 +26,7 @@ Cell types: `shower` (small, short), `rain` (large fronts), `thunderstorm` (ligh
 ```
 ./gradlew build
 ./gradlew runClient           # with Better Clouds + YACL from Modrinth
+./gradlew runClient -PquickPlay="New World"   # straight into a world
 ./gradlew runGameTestServer   # gametest/LocalWeatherTests
 ```
 

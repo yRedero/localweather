@@ -107,6 +107,7 @@ public final class LocalWeatherCommand {
         Vec3 pos = source.getPosition();
         float r = radius > 0 ? radius : type.rollRadius(level.random);
         StormCell cell = WeatherSimulator.spawn(data, type, pos.x, pos.z, r, level.random);
+        WeatherSimulator.skipForming(cell);
         WeatherSimulator.syncAll(level);
         source.sendSuccess(() -> Component.translatable("commands.localweather.spawned",
                 type.name().toLowerCase(Locale.ROOT), (int) r, (int) pos.x, (int) pos.z), true);
