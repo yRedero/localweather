@@ -69,8 +69,10 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // Servers get their own folder so they don't load the client-only mods in run/mods.
         server {
             server()
+            gameDirectory = project.file('run-server')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
@@ -80,6 +82,7 @@ neoForge {
         // The gametest system is also enabled by default for other run configs under the /test command.
         gameTestServer {
             type = "gameTestServer"
+            gameDirectory = project.file('run-server')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
@@ -124,14 +127,33 @@ neoForge {
 // "optional", meaning it will not be pulled by dependents of this mod.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    // Mod jars copied into run/mods for the client run, see installClientMods.
+    clientMods {
+        canBeConsumed = false
+        transitive = false
+    }
 }
 
 dependencies {
     // Better Clouds is optional at runtime: compile against it, but don't publish it as a dependency.
     compileOnly "maven.modrinth:better-clouds:${betterclouds_version}"
-    // It is client-only and crashes dedicated and gametest servers, so only runClient loads it (plus YACL, which it needs).
-    clientAdditionalRuntimeClasspath "maven.modrinth:better-clouds:${betterclouds_version}"
-    clientAdditionalRuntimeClasspath "maven.modrinth:yacl:${yacl_version}"
+    // It is client-only and crashes dedicated and gametest servers, so only the client run loads it (plus YACL, which it needs).
+    clientMods "maven.modrinth:better-clouds:${betterclouds_version}"
+    clientMods "maven.modrinth:yacl:${yacl_version}"
+}
+
+// Jars on the dev classpath aren't picked up as mods, but run/mods always is. Runs before every client launch,
+// including IDE runs. Only old Better Clouds and YACL jars are removed, anything else in run/mods is kept.
+var installClientMods = tasks.register("installClientMods", Sync) {
+    from configurations.clientMods
+    into layout.projectDirectory.dir("run/mods")
+    preserve {
+        include "**"
+        exclude "better-clouds-*.jar", "yacl-*.jar"
+    }
+}
+tasks.named("prepareClientRun") {
+    dependsOn installClientMods
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

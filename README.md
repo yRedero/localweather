@@ -29,7 +29,7 @@ Cell types: `shower` (small, short), `rain` (large fronts), `thunderstorm` (ligh
 ./gradlew runGameTestServer   # gametest/LocalWeatherTests
 ```
 
-Better Clouds is client-only and crashes servers, so it is only on the `runClient` classpath (`clientAdditionalRuntimeClasspath`). Versions are in `gradle.properties`.
+Before every client launch (Gradle or IDE), `installClientMods` copies Better Clouds and YACL from Modrinth into `run/mods`. Better Clouds is client-only and crashes servers, so the server and gametest runs use `run-server/` instead. Versions are in `gradle.properties`.
 
 ## Next
 
