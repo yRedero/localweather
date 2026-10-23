@@ -32,16 +32,14 @@ import redero.localweather.weather.WeatherView;
  * puffs for a thunderstorm tower, a flat sheet of puffs for its anvil, one extra puff for a rain deck.
  */
 public final class CloudGenContext implements WeatherView {
-    /** Better Clouds' own weather term is 0.5 + 0.3 * weather; storms push coverage further than that. */
-    private static final float STORM_GAIN = 0.5F;
     /** Extra clouds (towers, decks, high layer) may use at most this share of Better Clouds' buffer. */
     private static final float EXTRA_SHARE = 0.6F;
     /** Tallest tower above the cloud deck, in blocks. */
     private static final float TOWER_HEIGHT = 240.0F;
     /** Anvil altitude above the cloud base, in blocks. */
     private static final float ANVIL_HEIGHT = 250.0F;
-    /** How far storm outlines are pushed around by noise, in blocks. */
-    private static final double WARP = 350.0;
+    /** Storm reach used to skip storm maths for samples far from every cell (overcast plus outline noise). */
+    private static final double CELL_REACH = 1.7;
     /** Width of the dithered band between detail levels, in blocks. */
     private static final double LOD_BLEND = 300.0;
 
@@ -59,6 +57,7 @@ public final class CloudGenContext implements WeatherView {
     private final int blockDistance, detailDistance;
     private final boolean encode, lod, towers, darkness, thick, high;
     private final float highHeight;
+    private final float cloudCover;
     private final int extraBudget;
 
     // Per-sample state. A task samples one point at a time on a single thread.
@@ -67,7 +66,7 @@ public final class CloudGenContext implements WeatherView {
     private boolean highOnly;
     private boolean towerGrid;
     private float highStrength;
-    private float rain, thunder, towerShape;
+    private float rain, thunder, cover, towerShape;
     private int pointsThisSample;
     private final List<CloudCode> pending = new ArrayList<>(24);
     private int extras;
@@ -100,6 +99,7 @@ public final class CloudGenContext implements WeatherView {
         this.thick = LocalWeatherClientConfig.THICK_RAIN_CLOUDS.get();
         this.high = encode && LocalWeatherClientConfig.HIGH_LAYER.get();
         this.highHeight = LocalWeatherClientConfig.HIGH_LAYER_HEIGHT.get();
+        this.cloudCover = LocalWeatherClientConfig.CLOUD_COVER.get().floatValue();
 
         // Same formula as Better Clouds' ChunkedGenerator#calcBufferSize: the buffer holds size * size clouds.
         int size = Mth.floor(blockDistance / spacing) + Mth.ceil(blockDistance / spacing);
@@ -119,7 +119,7 @@ public final class CloudGenContext implements WeatherView {
         ClientWeather weather = ClientWeather.INSTANCE;
         boolean hasWeather = weather.active() && LocalWeatherApi.managed(level);
         List<StormCell> inView = hasWeather
-                ? new ArrayList<>(BetterCloudsCompat.cellsInView(camera.getX(), camera.getZ(), options.blockDistance() + (int) WARP))
+                ? new ArrayList<>(BetterCloudsCompat.cellsInView(camera.getX(), camera.getZ(), options.blockDistance()))
                 : List.of();
         // Same weather term as Better Clouds' CloudinessProvider, at the camera.
         float cameraWeather = Math.max(0.6F * level.getRainLevel(1.0F), level.getThunderLevel(1.0F));
@@ -140,7 +140,7 @@ public final class CloudGenContext implements WeatherView {
         if (step == 0) return 0.0F;
 
         boolean kept = onGrid(x, z, step);
-        boolean highGrid = high && onGrid(x, z, Math.max(2, step));
+        boolean highGrid = high && onGrid(x, z, Math.max(3, step));
         if (!kept && !highGrid) return 0.0F;
 
         stormAt(x, z);
@@ -150,7 +150,7 @@ public final class CloudGenContext implements WeatherView {
         float value = 0.0F;
         if (kept) {
             stats[step][0]++;
-            value = sampler.sample(hasWeather ? cloudinessAt(x, z) : cloudiness);
+            value = sampler.sample(cloudinessAt());
             if (value > 0.0F) stats[step][1]++;
         }
         if (value <= 0.0F && highStrength > 0.0F) {
@@ -167,7 +167,8 @@ public final class CloudGenContext implements WeatherView {
         int size = step;
         if (highOnly) return highCloud(x, z, size);
 
-        float dark = darkness ? Mth.clamp(Math.max(0.85F * thunder, 0.6F * rain), 0.0F, 1.0F) : 0.0F;
+        // Dark where it actually rains, so a dark cloud overhead means rain.
+        float dark = darkness ? Mth.clamp(Math.max(0.85F * thunder, 0.75F * smoothstep(0.15F, 0.55F, rain)), 0.0F, 1.0F) : 0.0F;
         if (dark > 0.1F) stats[step][2]++;
         // Rain decks hang a little lower than fair-weather clouds.
         if (thick) y -= 20.0 * rain;
@@ -222,21 +223,21 @@ public final class CloudGenContext implements WeatherView {
     }
 
     /**
-     * Rain and thunder for the current sample. Storm outlines are bent by noise so they aren't circles, and the
-     * towers grow out of separate convective cells instead of one even plateau.
+     * Rain, thunder and overcast for the current sample, from the same storm shapes the server rains with.
+     * Towers grow out of separate convective cells instead of one even plateau.
      */
     private void stormAt(int x, int z) {
         rain = 0.0F;
         thunder = 0.0F;
+        cover = 0.0F;
         towerShape = 0.0F;
         if (!hasWeather) return;
         double wx = x + originX;
         double wz = z + originZ;
         if (!nearAnyCell(wx, wz)) return;
-        double warpedX = wx + WARP * STORM_NOISE.getValue(wx / 900.0, wz / 900.0);
-        double warpedZ = wz + WARP * STORM_NOISE.getValue(wx / 900.0 + 37.0, wz / 900.0 + 37.0);
-        rain = rainAt(warpedX, warpedZ);
-        thunder = thunderAt(warpedX, warpedZ);
+        rain = rainAt(wx, wz);
+        thunder = thunderAt(wx, wz);
+        cover = cloudAt(wx, wz);
         if (thunder > 0.0F) {
             double cellsNoise = STORM_NOISE.getValue(wx / 380.0 + 91.0, wz / 380.0 + 91.0);
             towerShape = (float) (0.3 + 0.7 * Math.max(0.0, cellsNoise));
@@ -245,16 +246,21 @@ public final class CloudGenContext implements WeatherView {
 
     private boolean nearAnyCell(double wx, double wz) {
         for (StormCell cell : cells) {
-            double reach = cell.radius + WARP;
+            double reach = cell.radius * CELL_REACH;
             if (Mth.square(cell.centerX(aheadTicks) - wx) + Mth.square(cell.centerZ(aheadTicks) - wz) < reach * reach) return true;
         }
         return false;
     }
 
+    /** A flat high cloud, nudged off the sample grid so the layer doesn't show a checkerboard. */
     private CloudCode highCloud(double x, double z, int size) {
-        float weather = Math.max(0.6F * rain, thunder);
+        float weather = Math.max(cover, thunder);
+        int highSize = Math.max(size, 2);
+        double width = sizeXZ * highSize;
+        double px = x + width * 0.45 * (2.0 * hash(sampleX, sampleZ, 21) - 1.0);
+        double pz = z + width * 0.45 * (2.0 * hash(sampleX, sampleZ, 22) - 1.0);
         double y = yOffset + highHeight + 20.0 * HIGH_NOISE.getValue(x / 900.0, z / 900.0) + 6.0 * (hash(sampleX, sampleZ, 5) - 0.5);
-        return new CloudCode(x, y, z, y, y, code(size, 0.4F * weather, true));
+        return new CloudCode(px, y, pz, y, y, code(highSize, 0.4F * weather, true));
     }
 
     /** Adds a stacked cloud, nudged sideways by up to {@code jitter} of its width so faces never line up. */
@@ -296,20 +302,30 @@ public final class CloudGenContext implements WeatherView {
     /** High, flat clouds: patchy in clear weather, a near-solid sheet around storms. */
     private float highLayerAt(int x, int z) {
         double n = 0.65 * HIGH_NOISE.getValue(x / 1600.0, z / 1600.0) + 0.35 * HIGH_NOISE.getValue(x / 420.0 + 100.0, z / 420.0);
-        float weather = Math.max(0.6F * rain, thunder);
-        double threshold = 0.5 - 0.5 * weather;
+        // Storms thicken the high layer, but it should stay patchy rather than become a solid lid.
+        float weather = Math.max(cover, thunder);
+        double threshold = 0.5 - 0.3 * weather;
         return n > threshold ? (float) Math.min(1.0, (n - threshold) * 3.0) : 0.0F;
     }
 
-    /** Cloudiness for one sample: Better Clouds' clear-sky value, raised by the storms over that point. */
-    private float cloudinessAt(int x, int z) {
-        float weather = Math.max(0.6F * rain, thunder);
+    /**
+     * Cloudiness for the current sample: the fair-weather cover, raised towards full overcast by storms.
+     * The overcast reaches past the rain, so storms look as big as they are.
+     */
+    private float cloudinessAt() {
+        float weather = Math.max(Math.max(0.6F * rain, thunder), 0.85F * cover);
         if (weather > 0.0F) {
             // Some texture inside the storm so it isn't one flat sheet.
-            weather *= (float) (0.85 + 0.15 * STORM_NOISE.getValue(x / 250.0 + 11.0, z / 250.0 + 11.0));
+            weather *= (float) (0.85 + 0.15 * STORM_NOISE.getValue(sampleX / 250.0 + 11.0, sampleZ / 250.0 + 11.0));
         }
+        float clear = cloudCover;
         // Never zero: Better Clouds divides by it.
-        return Mth.clamp(otherFactors * (0.5F + STORM_GAIN * weather), 0.01F, 1.0F);
+        return Mth.clamp(otherFactors * (clear + (1.05F - clear) * weather), 0.01F, 1.0F);
+    }
+
+    private static float smoothstep(float edge0, float edge1, float x) {
+        float t = Mth.clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
     }
 
     /** Stable 0..1 value per grid point and purpose. */

@@ -3,12 +3,21 @@ package redero.localweather.weather;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.levelgen.LegacyRandomSource;
+import net.minecraft.world.level.levelgen.synth.SimplexNoise;
 
 /**
  * One storm system: a disc of rain that drifts with the wind and fades in and out over its lifetime.
  * Mutated only by the server simulator; clients get fresh copies and extrapolate them with {@code aheadTicks}.
  */
 public final class StormCell {
+    /** Bends every storm's outline so it isn't a circle. Shared by rain, lightning and clouds, so they agree. */
+    private static final SimplexNoise SHAPE_NOISE = new SimplexNoise(new LegacyRandomSource(0x5704L));
+    /** How far the outline is pushed in or out, as a share of the radius. */
+    private static final double WARP = 0.25;
+    /** Overcast reaches this much further than the rain. */
+    private static final float CLOUD_REACH = 1.35F;
+
     public final int id;
     public final CellType type;
     public double x, z;
@@ -65,10 +74,15 @@ public final class StormCell {
         return z + vz * aheadTicks;
     }
 
-    /** Distance from the centre in radii. */
+    /** Distance from the centre in radii, measured through the outline noise. */
     private double relativeDistance(double px, double pz, int aheadTicks) {
         double dx = px - centerX(aheadTicks);
         double dz = pz - centerZ(aheadTicks);
+        double reach = radius * CLOUD_REACH * (1.0 + WARP);
+        if (dx * dx + dz * dz > reach * reach) return Double.MAX_VALUE;
+        double warp = WARP * radius;
+        dx += warp * SHAPE_NOISE.getValue(px / 900.0, pz / 900.0);
+        dz += warp * SHAPE_NOISE.getValue(px / 900.0 + 37.0, pz / 900.0 + 37.0);
         return Math.sqrt(dx * dx + dz * dz) / radius;
     }
 
@@ -77,6 +91,13 @@ public final class StormCell {
         double d = relativeDistance(px, pz, aheadTicks);
         if (d >= 1.0) return 0.0F;
         return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.55F, 1.0F, (float) d));
+    }
+
+    /** Cloud cover: the overcast reaches past the rain, so a storm looks bigger than the area it rains on. */
+    public float cloudAt(double px, double pz, int aheadTicks) {
+        double d = relativeDistance(px, pz, aheadTicks) / CLOUD_REACH;
+        if (d >= 1.0) return 0.0F;
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.45F, 1.0F, (float) d));
     }
 
     /** Thunder is concentrated in a tighter core than the rain. */

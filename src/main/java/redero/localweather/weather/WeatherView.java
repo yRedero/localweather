@@ -20,6 +20,15 @@ public interface WeatherView {
         return 1.0F - dry;
     }
 
+    /** How overcast the sky is, 0..1. Reaches past the rain. */
+    default float cloudAt(double x, double z) {
+        float cloud = 0.0F;
+        for (StormCell cell : cells()) {
+            cloud = Math.max(cloud, cell.cloudAt(x, z, aheadTicks()));
+        }
+        return cloud;
+    }
+
     default float thunderAt(double x, double z) {
         float thunder = 0.0F;
         for (StormCell cell : cells()) {

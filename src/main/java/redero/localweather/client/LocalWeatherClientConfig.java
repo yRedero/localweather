@@ -6,6 +6,7 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public final class LocalWeatherClientConfig {
     public static final ModConfigSpec SPEC;
 
+    public static final ModConfigSpec.DoubleValue CLOUD_COVER;
     public static final ModConfigSpec.BooleanValue FAR_CLOUDS;
     public static final ModConfigSpec.IntValue CLOUD_DISTANCE;
     public static final ModConfigSpec.IntValue DETAIL_DISTANCE;
@@ -19,6 +20,8 @@ public final class LocalWeatherClientConfig {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
         b.comment("Changes to Better Clouds. Everything here needs Better Clouds installed.").push("betterclouds");
 
+        CLOUD_COVER = b.comment("How cloudy the sky is in fair weather. Better Clouds' own value is 0.5; storms add on top.")
+                .defineInRange("cloudCover", 0.62, 0.2, 0.95);
         FAR_CLOUDS = b.comment("Draw clouds further than Better Clouds allows, with less detail far away.")
                 .define("farClouds", true);
         CLOUD_DISTANCE = b.comment("How far clouds are drawn, in blocks. Better Clouds' own limit is 4x your render distance.",
@@ -50,6 +53,7 @@ public final class LocalWeatherClientConfig {
     public static int geometryHash() {
         if (!SPEC.isLoaded()) return 0;
         int h = Boolean.hashCode(FAR_CLOUDS.get());
+        h = 31 * h + Double.hashCode(CLOUD_COVER.get());
         h = 31 * h + CLOUD_DISTANCE.get();
         h = 31 * h + DETAIL_DISTANCE.get();
         h = 31 * h + Boolean.hashCode(STORM_TOWERS.get());

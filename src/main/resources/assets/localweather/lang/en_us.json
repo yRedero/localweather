@@ -23,5 +23,7 @@
   "localweather.configuration.highLayer": "High cloud layer",
   "localweather.configuration.highLayer.tooltip": "A second, high and flat cloud layer. It gets denser near storms.",
   "localweather.configuration.highLayerHeight": "High layer height",
-  "localweather.configuration.highLayerHeight.tooltip": "How far above the normal clouds the high layer floats, in blocks."
+  "localweather.configuration.highLayerHeight.tooltip": "How far above the normal clouds the high layer floats, in blocks.",
+  "localweather.configuration.cloudCover": "Fair-weather cloud cover",
+  "localweather.configuration.cloudCover.tooltip": "How cloudy the sky is away from storms. Better Clouds' own value is 0.5; storms add on top."
 }
