@@ -1,0 +1,6 @@
+{
+  "commands.localweather.spawned": "Spawned a %s cell (radius %s) at %s, %s",
+  "commands.localweather.cleared": "Removed %s storm cells",
+  "commands.localweather.none": "No storm cells in this dimension",
+  "commands.localweather.here": "Local weather here: rain %s, thunder %s"
+}
