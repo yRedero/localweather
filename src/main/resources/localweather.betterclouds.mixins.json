@@ -5,8 +5,12 @@
   "plugin": "redero.localweather.compat.BetterCloudsMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "BufferAccessor",
     "ChunkedGeneratorMixin",
-    "ChunkedGeneratorTaskMixin"
+    "ChunkedGeneratorTaskMixin",
+    "ConfigMixin",
+    "RendererMixin",
+    "ShaderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -69,6 +69,10 @@ neoForge {
             if (project.hasProperty('quickPlay')) {
                 programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
             }
+            // -PdevScene places storms around you and saves screenshots to run/screenshots, see DevScene.
+            if (project.hasProperty('devScene')) {
+                systemProperty 'localweather.devscene', 'true'
+            }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }

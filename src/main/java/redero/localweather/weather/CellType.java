@@ -4,9 +4,10 @@ import net.minecraft.util.RandomSource;
 
 /** Kinds of storm cell. Ranges are rolled once when a cell spawns. */
 public enum CellType {
-    SHOWER(250, 500, 0.5F, 0.8F, 0.0F, 0.0F, 6, 12),
-    RAIN(700, 1400, 0.7F, 1.0F, 0.0F, 0.3F, 15, 30),
-    THUNDERSTORM(400, 800, 0.9F, 1.0F, 0.8F, 1.0F, 10, 20);
+    // Sized to be seen from far away with Local Weather's far clouds.
+    SHOWER(500, 1000, 0.5F, 0.8F, 0.0F, 0.0F, 8, 16),
+    RAIN(1600, 3200, 0.7F, 1.0F, 0.0F, 0.3F, 20, 40),
+    THUNDERSTORM(900, 1600, 0.9F, 1.0F, 0.8F, 1.0F, 15, 30);
 
     private final int minRadius, maxRadius;
     private final float minIntensity, maxIntensity;

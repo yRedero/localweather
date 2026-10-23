@@ -1,0 +1,104 @@
+package redero.localweather.client.betterclouds;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
+import redero.localweather.LocalWeather;
+
+/**
+ * Text patches for Better Clouds' coverage and shading shaders, so each cloud can carry a size, a storm
+ * darkness and a "flat" flag. They travel in the cloud's y coordinate, see {@link CloudCode}.
+ * Both shaders are patched or neither: a half-patched pair would draw clouds in the wrong place.
+ */
+public final class BetterCloudsShaderPatch {
+    private static final String COVERAGE_VSH = "shaders/core/betterclouds_coverage.vsh";
+    private static final String SHADING_FSH = "shaders/core/betterclouds_shading.fsh";
+
+    private static final String[][] COVERAGE = {
+            {"layout(location = 0) in vec3 in_pos;", "layout(location = 0) in vec3 lw_in_pos;"},
+            {"void main() {", """
+                    void main() {
+                        // Local Weather: decode size, darkness and flat flag from the cloud's y coordinate.
+                        float lw_code = floor((lw_in_pos.y + 1024.0) / 2048.0);
+                        vec3 in_pos = vec3(lw_in_pos.x, lw_in_pos.y - lw_code * 2048.0, lw_in_pos.z);
+                        float lw_size = 1.0 + mod(lw_code, 4.0);
+                        float lw_dark = mod(floor(lw_code / 4.0), 8.0);
+                        float lw_flat = mod(floor(lw_code / 32.0), 2.0);"""},
+            // Better Clouds shrinks and flattens clouds towards the edge of its range; far storms must keep their height.
+            {"vec3 cloudPos = in_pos; // in world space but anchored to the chunk grid", """
+                    if (lw_code > 0.5) scaleFalloff = 1.0;
+                        vec3 cloudPos = in_pos; // in world space but anchored to the chunk grid"""},
+            {"vec3 scale = SIZE * dynScale * scaleFalloff;", """
+                    vec3 scale = SIZE * dynScale * scaleFalloff;
+                        scale *= lw_size;
+                        scale.y *= mix(1.0, 0.2, lw_flat);"""},
+            {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;",
+                    "pass_color.b = (lw_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"},
+    };
+
+    private static final String[][] SHADING = {
+            {"vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;", """
+                    vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;
+                        // Local Weather: the blue channel holds 8 darkness steps with the colour noise inside each step.
+                        float lw_dark = floor(cloudData.b * 8.0) / 7.0;
+                        cloudData.b = clamp((fract(cloudData.b * 8.0) - 0.05) / 0.85, 0.0, 1.0);"""},
+            {"color_lumi *= u_color_grading.x;", """
+                    color_lumi *= mix(1.0, 0.22, min(lw_dark, 1.0));
+                        color_lumi *= u_color_grading.x;"""},
+            // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds.
+            {"out_color.a *= u_opacity.y;", """
+                    out_color.a = mix(out_color.a, sqrt(out_color.a), min(lw_dark, 1.0));
+                        out_color.a *= u_opacity.y;"""},
+    };
+
+    private static volatile boolean active;
+
+    private BetterCloudsShaderPatch() {
+    }
+
+    /** True once the current shaders carry the patch, so the generator may encode clouds. */
+    public static boolean active() {
+        return active;
+    }
+
+    /** Called with each Better Clouds shader source right before it is compiled. */
+    public static String patch(ResourceLocation id, String source, ResourceManager resources) {
+        String[][] edits;
+        if (id.getPath().equals(COVERAGE_VSH)) {
+            edits = COVERAGE;
+        } else if (id.getPath().equals(SHADING_FSH)) {
+            edits = SHADING;
+        } else {
+            return source;
+        }
+        boolean ok = anchorsPresent(resources, COVERAGE_VSH, COVERAGE) && anchorsPresent(resources, SHADING_FSH, SHADING);
+        active = ok;
+        if (!ok) {
+            LocalWeather.LOGGER.warn("Better Clouds shaders changed, storm cloud sizes and darkness are disabled");
+            return source;
+        }
+        for (String[] edit : edits) {
+            source = source.replace(edit[0], edit[1]);
+        }
+        return source;
+    }
+
+    private static boolean anchorsPresent(ResourceManager resources, String path, String[][] edits) {
+        Optional<Resource> resource = resources.getResource(ResourceLocation.fromNamespaceAndPath("betterclouds", path));
+        if (resource.isEmpty()) return false;
+        try (InputStream in = resource.get().open()) {
+            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            for (String[] edit : edits) {
+                if (!text.contains(edit[0])) return false;
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+}

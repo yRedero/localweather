@@ -22,12 +22,12 @@ public final class WeatherSimulator {
     /** Cells move and age in steps of this many ticks. */
     static final int STEP = 20;
     /** Cells further than this from every player are dropped. */
-    private static final double DESPAWN_RANGE = 6000.0;
+    private static final double DESPAWN_RANGE = 14000.0;
     /** Players are told about cells within this range. */
-    private static final double SYNC_RANGE = 4000.0;
+    private static final double SYNC_RANGE = 10000.0;
     /** A player gets no new cells while this many are already within {@link #CROWD_RANGE}. */
-    private static final int MAX_NEARBY = 4;
-    private static final double CROWD_RANGE = 3000.0;
+    private static final int MAX_NEARBY = 5;
+    private static final double CROWD_RANGE = 7000.0;
     /** On average one spawn attempt per player every this many steps. */
     private static final int SPAWN_ODDS = 120;
 
@@ -76,8 +76,8 @@ public final class WeatherSimulator {
     private static void trySpawnUpwind(ServerLevel level, WeatherSavedData data, ServerPlayer player, RandomSource random) {
         float dirX = (float) Math.cos(data.windAngle);
         float dirZ = (float) Math.sin(data.windAngle);
-        double upwind = 1200.0 + random.nextDouble() * 1400.0;
-        double sideways = (random.nextDouble() - 0.5) * 3000.0;
+        double upwind = 2500.0 + random.nextDouble() * 3500.0;
+        double sideways = (random.nextDouble() - 0.5) * 8000.0;
         double x = player.getX() - dirX * upwind - dirZ * sideways;
         double z = player.getZ() - dirZ * upwind + dirX * sideways;
 

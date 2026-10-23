@@ -43,7 +43,7 @@ public final class LocalWeatherCommand {
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
                                         Arrays.stream(CellType.values()).map(t -> t.name().toLowerCase(Locale.ROOT)), builder))
                                 .executes(ctx -> spawn(ctx, -1))
-                                .then(Commands.argument("radius", IntegerArgumentType.integer(50, 4000))
+                                .then(Commands.argument("radius", IntegerArgumentType.integer(50, 8000))
                                         .executes(ctx -> spawn(ctx, IntegerArgumentType.getInteger(ctx, "radius")))))));
     }
 

@@ -5,6 +5,7 @@ import java.util.List;
 
 import net.minecraft.util.Mth;
 import redero.localweather.client.ClientWeather;
+import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.weather.StormCell;
 
 /**
@@ -22,9 +23,16 @@ public final class BetterCloudsCompat {
     private BetterCloudsCompat() {
     }
 
+    /** True when clouds are generated past Better Clouds' own distance (see ConfigMixin). */
+    public static boolean farCloudsActive() {
+        return LocalWeatherClientConfig.SPEC.isLoaded() && LocalWeatherClientConfig.FAR_CLOUDS.get()
+                && BetterCloudsShaderPatch.active();
+    }
+
     /** Called once per frame from ChunkedGenerator#update, on the render thread. */
     public static boolean fieldChanged(double cameraX, double cameraZ, double originX, double originZ, int blockDistance) {
-        long signature = 0;
+        // Settings and the shader patch change geometry too.
+        long signature = 31L * LocalWeatherClientConfig.geometryHash() + Boolean.hashCode(BetterCloudsShaderPatch.active());
         ClientWeather weather = ClientWeather.INSTANCE;
         if (weather.active()) {
             int ahead = weather.aheadTicks();
