@@ -152,6 +152,8 @@ public final class CloudGenContext implements WeatherView {
         if (kept) {
             stats[step][0]++;
             value = sampler.sample(cloudinessAt());
+            // Better Clouds' noise leaves holes even at full cover; where it rains there's always a cloud above.
+            if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain));
             if (value > 0.0F) stats[step][1]++;
         }
         if (value <= 0.0F && highStrength > 0.0F) {

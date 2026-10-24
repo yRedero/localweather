@@ -61,5 +61,9 @@
   "localweather.configuration.windMin": "Slowest wind",
   "localweather.configuration.windMin.tooltip": "In blocks per second.",
   "localweather.configuration.windMax": "Fastest wind",
-  "localweather.configuration.windMax.tooltip": "In blocks per second."
+  "localweather.configuration.windMax.tooltip": "In blocks per second.",
+  "localweather.configuration.rain": "Rain",
+  "localweather.configuration.rain.tooltip": "Rain.",
+  "localweather.configuration.noRainAboveClouds": "No rain above the clouds",
+  "localweather.configuration.noRainAboveClouds.tooltip": "No rain, rain sound or storm darkness while you are above the cloud base. Only affects what you see and hear."
 }

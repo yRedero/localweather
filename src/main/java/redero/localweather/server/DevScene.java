@@ -3,6 +3,7 @@ package redero.localweather.server;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import redero.localweather.LocalWeather;
 import redero.localweather.weather.CellType;
@@ -16,6 +17,8 @@ public final class DevScene {
     public static final boolean ENABLED = MODE != null;
     /** -PdevScene=inside: stand inside a storm, with the weather running instead of frozen. */
     public static final boolean INSIDE = "inside".equals(MODE);
+    /** -PdevScene=above: the normal storms, seen from high above the clouds (spectator), looking down. */
+    public static final boolean ABOVE = "above".equals(MODE);
 
     private DevScene() {
     }
@@ -46,8 +49,13 @@ public final class DevScene {
         level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(false, server);
         level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
         level.setDayTime(6000);
+        if (ABOVE) {
+            // Above even raised clouds (Voxy + Tectonic preset: base ~352, towers to ~720).
+            player.setGameMode(GameType.SPECTATOR);
+            player.teleportTo(x, 760.0, z);
+        }
         WeatherSimulator.syncAll(level);
-        LocalWeather.LOGGER.info("Dev scene: thunderstorms east and south, rain front north, shower west");
+        LocalWeather.LOGGER.info("Dev scene: thunderstorms east and south, rain front north, shower west{}", ABOVE ? ", seen from above" : "");
     }
 
     private static void place(ServerLevel level, WeatherSavedData data, CellType type, double x, double z, float radius) {

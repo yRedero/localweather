@@ -77,7 +77,8 @@ final class DevSceneClient {
 
     private static void look(LocalPlayer player, Object[] view) {
         float yaw = (Float) view[1];
-        float pitch = (Float) view[2];
+        // From above the clouds, look down at them instead of up.
+        float pitch = DevScene.ABOVE ? 30.0F : (Float) view[2];
         player.setYRot(yaw);
         player.yRotO = yaw;
         player.setYHeadRot(yaw);
