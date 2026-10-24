@@ -21,14 +21,16 @@ Cell types: `shower` (0.9-1.6 km radius), `rain` (2.6-4.8 km fronts), `thunderst
 
 ## Config and presets
 
-Two config files, both editable in the mod list (Local Weather → Config). Each has a `preset` that fills in every value below it when you pick it, in the screen or in the file (also while the game is closed); the values can still be tweaked afterwards. `CUSTOM` never changes anything.
+Two config files, both editable in the mod list (Local Weather → Config). Presets fill in the values they cover when you pick them, in the screen or in the file (also while the game is closed); the values can still be tweaked afterwards. `CUSTOM` never changes anything.
 
-- **Client** (`config/localweather-client.toml`): no rain above the clouds (on by default), cloud cover, cloud height offset, far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep. Presets: `DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`.
-- **World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/localweather-server.toml`, which overrides it): cloud height (sent to every player) and dry above the clouds, storm size and lifetime, max storms near a player, storm frequency, shower and thunderstorm chance, wind speed range. Presets: `DEFAULT`, `CALM`, `STORMY`, `VOXY_TECTONIC`.
+- **Client** (`config/localweather-client.toml`), one `preset` (`DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`): cloud resolution, no rain above the clouds, cloud cover, cloud height offset (used without a Local Weather server), far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep.
+- **World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/localweather-server.toml`, which overrides it), two presets:
+  - `heightPreset` (`VANILLA` 192, `TECTONIC` +160, `TALL_TERRAIN` +320): cloud height and dry above the clouds.
+  - `weatherPreset` (`DEFAULT`, `CALM`, `STORMY`, `HUGE_STORMS`): storm size, lifetime, count and frequency, shower and thunderstorm chance, wind speeds.
 
-`VOXY_TECTONIC` is for very tall terrain and extreme render distances: clouds 160 blocks higher (above Tectonic's mountains), drawn out to 6 km, 360-block storm towers, and 1.6x larger, longer storms. Set it in both files. If you use Tectonic's increased build height, raise `cloudHeightOffset` further.
+For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = TECTONIC` and `weatherPreset = HUGE_STORMS`: clouds 160 blocks higher (above Tectonic's mountains), drawn out to 6 km, 360-block storm towers, and 1.6x larger, longer storms.
 
-**Cloud height is the world's.** The world config's `cloudHeightOffset` is synced to every player, who draw their clouds there (unless they turn off `followServerCloudHeight`), and with `dryAboveClouds` the server treats everything above the cloud base as dry: no wetness, snow, cauldron filling or lightning. The client's own `cloudHeightOffset` only applies without a Local Weather server or with following turned off.
+**Cloud height is the world's.** The world's `cloudHeightOffset` is synced to every player, who draw their clouds there (unless they turn off `followServerCloudHeight`), and with `dryAboveClouds` the server treats everything above the cloud base as dry: no wetness, snow, cauldron filling or lightning.
 
 ## Commands (op level 2)
 

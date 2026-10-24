@@ -43,7 +43,8 @@ public final class LocalWeatherClientConfig {
         PRESET = b.comment("Fills in all settings below when changed. Afterwards each setting can still be tweaked.",
                         "DEFAULT: balanced. PERFORMANCE: shorter view, fewer extras. CINEMATIC: far view, tall storms.",
                         "VOXY_TECTONIC: for very tall terrain (Tectonic) and extreme render distances (Voxy, Distant Horizons):",
-                        "clouds ~160 blocks higher, drawn out to 6 km, taller storms. CUSTOM: never changes anything.")
+                        "clouds ~160 blocks higher, drawn out to 6 km, taller storms. Pair it with the world config's",
+                        "heightPreset TECTONIC and weatherPreset HUGE_STORMS. CUSTOM: never changes anything.")
                 .defineEnum("preset", Preset.DEFAULT);
 
         b.comment("The cloud layer. Everything here needs Better Clouds installed.").push("clouds");
@@ -112,7 +113,7 @@ public final class LocalWeatherClientConfig {
     /** Called when the config file is loaded or changed: fills in the preset's values if the preset changed. */
     public static void sync(ModConfig config) {
         Preset preset = PRESET.get();
-        if (!PresetMarker.changed(config, preset.name(), Preset.DEFAULT.name()) || preset == Preset.CUSTOM) return;
+        if (!PresetMarker.changed(config, "preset", preset.name(), Preset.DEFAULT.name()) || preset == Preset.CUSTOM) return;
         preset.apply();
         SPEC.save();
         LocalWeather.LOGGER.info("Applied client preset {}", preset);

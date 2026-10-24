@@ -8,15 +8,17 @@ import redero.localweather.LocalWeather;
 import redero.localweather.PresetMarker;
 
 /**
- * Per-world weather settings (serverconfig/localweather-server.toml). Picking a preset fills in every value
- * below it; they can be tweaked afterwards.
+ * World weather settings (config/localweather-server.toml, or per world in serverconfig/). Two presets, each
+ * filling in its own section when changed: the weather preset (storms and wind) and the height preset (where the
+ * clouds sit). Values can be tweaked afterwards.
  */
 public final class LocalWeatherServerConfig {
     public static final ModConfigSpec SPEC;
 
-    public static final ModConfigSpec.EnumValue<Preset> PRESET;
+    public static final ModConfigSpec.EnumValue<HeightPreset> HEIGHT_PRESET;
     public static final ModConfigSpec.IntValue CLOUD_HEIGHT_OFFSET;
     public static final ModConfigSpec.BooleanValue DRY_ABOVE_CLOUDS;
+    public static final ModConfigSpec.EnumValue<WeatherPreset> WEATHER_PRESET;
     public static final ModConfigSpec.DoubleValue STORM_SIZE;
     public static final ModConfigSpec.DoubleValue STORM_LIFETIME;
     public static final ModConfigSpec.IntValue MAX_STORMS_NEARBY;
@@ -29,16 +31,13 @@ public final class LocalWeatherServerConfig {
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
-        PRESET = b.comment("Fills in all settings below when changed. Afterwards each setting can still be tweaked.",
-                        "DEFAULT: balanced. CALM: fewer, smaller storms. STORMY: frequent storms and more thunder.",
-                        "VOXY_TECTONIC: huge storms for huge views, pairs with the client preset of the same name.",
-                        "CUSTOM: never changes anything.")
-                .defineEnum("preset", Preset.DEFAULT);
-
         b.comment("Cloud height. Sent to every player, so everyone sees clouds at the same height as the world's weather.").push("clouds");
+        HEIGHT_PRESET = b.comment("Fills in the settings below when changed.",
+                        "VANILLA: clouds at 192, as in vanilla. TECTONIC: +160, above Tectonic's mountains.",
+                        "TALL_TERRAIN: +320, for terrain mods with a raised build limit. CUSTOM: never changes anything.")
+                .defineEnum("heightPreset", HeightPreset.VANILLA);
         CLOUD_HEIGHT_OFFSET = b.comment("Moves the clouds up (or down) from the overworld's cloud height of 192, in blocks.",
-                        "Raise it for terrain mods with tall mountains, e.g. +160 for Tectonic. Players follow this unless they",
-                        "turn off 'Follow server cloud height' in their own config.")
+                        "Players follow this unless they turn off 'Follow server cloud height' in their own config.")
                 .defineInRange("cloudHeightOffset", 0, -128, 1024);
         DRY_ABOVE_CLOUDS = b.comment("Above the cloud base it doesn't rain: players stay dry, snow doesn't pile up, cauldrons",
                         "don't fill and lightning doesn't strike there.")
@@ -46,6 +45,11 @@ public final class LocalWeatherServerConfig {
         b.pop();
 
         b.comment("Storm cells.").push("storms");
+        WEATHER_PRESET = b.comment("Fills in the storm and wind settings when changed.",
+                        "DEFAULT: balanced. CALM: fewer, smaller storms. STORMY: frequent storms and more thunder.",
+                        "HUGE_STORMS: 1.6x larger, longer storms for very far views (Voxy, Distant Horizons).",
+                        "CUSTOM: never changes anything.")
+                .defineEnum("weatherPreset", WeatherPreset.DEFAULT);
         STORM_SIZE = b.comment("Multiplies every storm's radius. 1 is 0.9-1.6 km showers, 2.6-4.8 km rain fronts, 1.4-2.4 km thunderstorms.")
                 .defineInRange("stormSize", 1.0, 0.25, 4.0);
         STORM_LIFETIME = b.comment("Multiplies how long storms last.")
@@ -60,7 +64,7 @@ public final class LocalWeatherServerConfig {
                 .defineInRange("thunderstormChance", 0.15, 0.0, 1.0);
         b.pop();
 
-        b.comment("Wind. It wanders between these speeds and carries every storm and cloud.").push("wind");
+        b.comment("Wind. It wanders between these speeds and carries every storm and cloud. Set by the weather preset.").push("wind");
         WIND_MIN = b.comment("Slowest wind, in blocks per second.")
                 .defineInRange("windMin", 0.6, 0.0, 20.0);
         WIND_MAX = b.comment("Fastest wind, in blocks per second.")
@@ -73,13 +77,27 @@ public final class LocalWeatherServerConfig {
     private LocalWeatherServerConfig() {
     }
 
-    /** Called when the config file is loaded or changed: fills in the preset's values if the preset changed. */
+    /** Called when the config file is loaded or changed: fills in each preset's values if that preset changed. */
     public static void sync(ModConfig config) {
-        Preset preset = PRESET.get();
-        if (!PresetMarker.changed(config, preset.name(), Preset.DEFAULT.name()) || preset == Preset.CUSTOM) return;
-        preset.apply();
-        SPEC.save();
-        LocalWeather.LOGGER.info("Applied server preset {}", preset);
+        boolean changed = false;
+        HeightPreset height = HEIGHT_PRESET.get();
+        if (PresetMarker.changed(config, "heightPreset", height.name(), HeightPreset.VANILLA.name()) && height != HeightPreset.CUSTOM) {
+            apply(heightValues(height));
+            LocalWeather.LOGGER.info("Applied height preset {}", height);
+            changed = true;
+        }
+        WeatherPreset weather = WEATHER_PRESET.get();
+        if (PresetMarker.changed(config, "weatherPreset", weather.name(), WeatherPreset.DEFAULT.name()) && weather != WeatherPreset.CUSTOM) {
+            apply(weatherValues(weather));
+            LocalWeather.LOGGER.info("Applied weather preset {}", weather);
+            changed = true;
+        }
+        if (changed) SPEC.save();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void apply(Map<ModConfigSpec.ConfigValue<?>, Object> values) {
+        values.forEach((key, value) -> ((ModConfigSpec.ConfigValue<Object>) key).set(value));
     }
 
     // Getters fall back to the defaults when no world is loaded (the server config only exists with a world).
@@ -126,34 +144,31 @@ public final class LocalWeatherServerConfig {
         return (float) (SPEC.isLoaded() ? Math.max(WIND_MIN.get(), WIND_MAX.get()) : 2.4) / 20.0F;
     }
 
-    public enum Preset {
-        DEFAULT, CALM, STORMY, VOXY_TECTONIC, CUSTOM;
+    public enum HeightPreset { VANILLA, TECTONIC, TALL_TERRAIN, CUSTOM }
 
-        @SuppressWarnings("unchecked")
-        void apply() {
-            presetValues(this).forEach((key, value) -> ((ModConfigSpec.ConfigValue<Object>) key).set(value));
-        }
+    public enum WeatherPreset { DEFAULT, CALM, STORMY, HUGE_STORMS, CUSTOM }
+
+    // Built on demand: the config values don't exist yet while the enums are first loaded.
+
+    private static Map<ModConfigSpec.ConfigValue<?>, Object> heightValues(HeightPreset preset) {
+        return switch (preset) {
+            case VANILLA -> Map.of(CLOUD_HEIGHT_OFFSET, 0, DRY_ABOVE_CLOUDS, true);
+            case TECTONIC -> Map.of(CLOUD_HEIGHT_OFFSET, 160, DRY_ABOVE_CLOUDS, true);
+            case TALL_TERRAIN -> Map.of(CLOUD_HEIGHT_OFFSET, 320, DRY_ABOVE_CLOUDS, true);
+            case CUSTOM -> Map.of();
+        };
     }
 
-    /** Built on demand: the config values don't exist yet while the enum is first loaded. */
-    private static Map<ModConfigSpec.ConfigValue<?>, Object> presetValues(Preset preset) {
+    private static Map<ModConfigSpec.ConfigValue<?>, Object> weatherValues(WeatherPreset preset) {
         return switch (preset) {
-            case DEFAULT -> Map.ofEntries(
-                    Map.entry(STORM_SIZE, 1.0), Map.entry(STORM_LIFETIME, 1.0), Map.entry(MAX_STORMS_NEARBY, 2), Map.entry(STORM_FREQUENCY, 1.0),
-                    Map.entry(SHOWER_CHANCE, 0.35), Map.entry(THUNDERSTORM_CHANCE, 0.15), Map.entry(WIND_MIN, 0.6), Map.entry(WIND_MAX, 2.4),
-                    Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(DRY_ABOVE_CLOUDS, true));
-            case CALM -> Map.ofEntries(
-                    Map.entry(STORM_SIZE, 0.8), Map.entry(STORM_LIFETIME, 0.8), Map.entry(MAX_STORMS_NEARBY, 1), Map.entry(STORM_FREQUENCY, 0.5),
-                    Map.entry(SHOWER_CHANCE, 0.5), Map.entry(THUNDERSTORM_CHANCE, 0.05), Map.entry(WIND_MIN, 0.4), Map.entry(WIND_MAX, 1.6),
-                    Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(DRY_ABOVE_CLOUDS, true));
-            case STORMY -> Map.ofEntries(
-                    Map.entry(STORM_SIZE, 1.1), Map.entry(STORM_LIFETIME, 1.0), Map.entry(MAX_STORMS_NEARBY, 3), Map.entry(STORM_FREQUENCY, 2.0),
-                    Map.entry(SHOWER_CHANCE, 0.3), Map.entry(THUNDERSTORM_CHANCE, 0.35), Map.entry(WIND_MIN, 1.0), Map.entry(WIND_MAX, 3.5),
-                    Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(DRY_ABOVE_CLOUDS, true));
-            case VOXY_TECTONIC -> Map.ofEntries(
-                    Map.entry(STORM_SIZE, 1.6), Map.entry(STORM_LIFETIME, 1.5), Map.entry(MAX_STORMS_NEARBY, 3), Map.entry(STORM_FREQUENCY, 1.0),
-                    Map.entry(SHOWER_CHANCE, 0.3), Map.entry(THUNDERSTORM_CHANCE, 0.2), Map.entry(WIND_MIN, 1.0), Map.entry(WIND_MAX, 3.0),
-                    Map.entry(CLOUD_HEIGHT_OFFSET, 160), Map.entry(DRY_ABOVE_CLOUDS, true));
+            case DEFAULT -> Map.of(STORM_SIZE, 1.0, STORM_LIFETIME, 1.0, MAX_STORMS_NEARBY, 2, STORM_FREQUENCY, 1.0,
+                    SHOWER_CHANCE, 0.35, THUNDERSTORM_CHANCE, 0.15, WIND_MIN, 0.6, WIND_MAX, 2.4);
+            case CALM -> Map.of(STORM_SIZE, 0.8, STORM_LIFETIME, 0.8, MAX_STORMS_NEARBY, 1, STORM_FREQUENCY, 0.5,
+                    SHOWER_CHANCE, 0.5, THUNDERSTORM_CHANCE, 0.05, WIND_MIN, 0.4, WIND_MAX, 1.6);
+            case STORMY -> Map.of(STORM_SIZE, 1.1, STORM_LIFETIME, 1.0, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 2.0,
+                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.35, WIND_MIN, 1.0, WIND_MAX, 3.5);
+            case HUGE_STORMS -> Map.of(STORM_SIZE, 1.6, STORM_LIFETIME, 1.5, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 1.0,
+                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.2, WIND_MIN, 1.0, WIND_MAX, 3.0);
             case CUSTOM -> Map.of();
         };
     }
