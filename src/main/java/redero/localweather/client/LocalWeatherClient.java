@@ -7,6 +7,7 @@ import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LightningBolt;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
@@ -17,6 +18,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import redero.localweather.LocalWeather;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
@@ -32,6 +34,14 @@ public final class LocalWeatherClient {
     public static void onClientTick(ClientTickEvent.Post event) {
         ClientWeather.INSTANCE.tick();
         DevSceneClient.tick();
+    }
+
+    /** Real lightning bolts light up the clouds above them. */
+    @SubscribeEvent
+    public static void onEntityJoin(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide() && event.getEntity() instanceof LightningBolt bolt) {
+            LightningFlashes.bolt(bolt.getX(), bolt.getZ());
+        }
     }
 
     @SubscribeEvent

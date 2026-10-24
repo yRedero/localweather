@@ -136,7 +136,31 @@ public final class BetterCloudsShaderPatch {
             {"uniform sampler2D u_light_texture;", """
                     uniform sampler2D u_light_texture;
                     // Local Weather: cloud resolution / screen resolution, set by RendererMixin.
-                    uniform vec2 lw_resolution;"""},
+                    uniform vec2 lw_resolution;
+                    // Lightning flashes: x, z relative to the camera, radius, intensity; and the cloud layer's height
+                    // relative to the camera, where the glow is placed.
+                    uniform vec4 lw_flashes[4];
+                    uniform int lw_flash_count;
+                    uniform float lw_cloud_y;"""},
+            // Lightning lights up the clouds around it: a soft glow where the view ray meets the cloud layer.
+            {"out_color.a *= cloudData.r;", """
+                    out_color.a *= cloudData.r;
+                        if (lw_flash_count > 0) {
+                            vec3 lw_dir = normalize(pass_dir);
+                            float lw_t = abs(lw_dir.y) > 0.01 ? lw_cloud_y / lw_dir.y : -1.0;
+                            if (lw_t > 0.0) {
+                                vec2 lw_hit = lw_dir.xz * lw_t;
+                                float lw_glow = 0.0;
+                                for (int i = 0; i < 4; i++) {
+                                    if (i >= lw_flash_count) break;
+                                    float lw_d = distance(lw_hit, lw_flashes[i].xy);
+                                    lw_glow += lw_flashes[i].w * (1.0 - smoothstep(0.0, lw_flashes[i].z, lw_d));
+                                }
+                                lw_glow = min(lw_glow, 1.5);
+                                out_color.rgb += vec3(0.78, 0.84, 1.0) * lw_glow * (1.0 - 0.6 * out_color.rgb);
+                                out_color.a = min(1.0, out_color.a * (1.0 + 0.3 * lw_glow));
+                            }
+                        }"""},
             {"ivec2(gl_FragCoord.xy)", "lw_px"},
             {"ivec2(gl_FragCoord)", "lw_px"},
             {"void main() {", """

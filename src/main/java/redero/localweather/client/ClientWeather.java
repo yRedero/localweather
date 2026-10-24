@@ -130,6 +130,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
         windOffsetX += windX;
         windOffsetZ += windZ;
+        LightningFlashes.tick(cells, ticksSinceSync, camera);
     }
 
     private void holdLevels() {
@@ -168,6 +169,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         skyRain = oSkyRain = skyThunder = oSkyThunder = 0.0F;
         gloom = oGloom = 0.0F;
         belowClouds = 1.0F;
+        LightningFlashes.clear();
     }
 
     public boolean active() {

@@ -70,6 +70,11 @@ final class DevSceneClient {
             return;
         }
         look(player, VIEWS[view]);
+        // A lightning flash just before the east and south shots, so the glow is in the picture.
+        if ((view == 0 || view == 3) && t % TICKS_PER_VIEW == TICKS_PER_VIEW - 11) {
+            double distance = view == 0 ? 1500.0 : 900.0;
+            LightningFlashes.bolt(player.getX() + (view == 0 ? distance : 0.0), player.getZ() + (view == 3 ? distance : 0.0));
+        }
         // Turn first, shoot near the end of the slot so the frame shows the new direction.
         if (t % TICKS_PER_VIEW == TICKS_PER_VIEW - 10) {
             String file = "localweather_" + VIEWS[view][0] + ".png";

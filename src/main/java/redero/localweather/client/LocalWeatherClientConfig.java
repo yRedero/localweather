@@ -29,6 +29,8 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.BooleanValue STORM_DARKNESS;
     public static final ModConfigSpec.DoubleValue DARKNESS_STRENGTH;
     public static final ModConfigSpec.BooleanValue THICK_RAIN_CLOUDS;
+    public static final ModConfigSpec.BooleanValue LIGHTNING_FLASHES;
+    public static final ModConfigSpec.BooleanValue DISTANT_THUNDER;
 
     public static final ModConfigSpec.BooleanValue HIGH_LAYER;
     public static final ModConfigSpec.IntValue HIGH_LAYER_HEIGHT;
@@ -81,6 +83,11 @@ public final class LocalWeatherClientConfig {
                 .defineInRange("darknessStrength", 1.0, 0.0, 1.0);
         THICK_RAIN_CLOUDS = b.comment("Rain makes the cloud layer thicker and hang a little lower.")
                 .define("thickRainClouds", true);
+        LIGHTNING_FLASHES = b.comment("Lightning lights up the storm clouds around it, and thunderstorms flash inside their clouds",
+                        "now and then, so you can see far storms flicker.")
+                .define("lightningFlashes", true);
+        DISTANT_THUNDER = b.comment("Thunder rumbles after flashes inside far storms, later and quieter the further away they are.")
+                .define("distantThunder", true);
         b.pop();
 
         b.comment("A second, flat cloud layer high above the normal clouds.").push("highLayer");
@@ -153,7 +160,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(CLOUD_COVER, 0.62), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 2560), Map.entry(DETAIL_DISTANCE, 1536),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 240), Map.entry(STORM_DARKNESS, true),
-                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true),
+                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 160),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case PERFORMANCE -> Map.ofEntries(
@@ -161,7 +168,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(CLOUD_COVER, 0.6), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 1536), Map.entry(DETAIL_DISTANCE, 768),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 160), Map.entry(STORM_DARKNESS, true),
-                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, false),
+                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, false), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, false), Map.entry(HIGH_LAYER_HEIGHT, 160),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case CINEMATIC -> Map.ofEntries(
@@ -169,7 +176,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(CLOUD_COVER, 0.66), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 4096), Map.entry(DETAIL_DISTANCE, 2048),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 320), Map.entry(STORM_DARKNESS, true),
-                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true),
+                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 200),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
             // Tectonic's mountains reach towards the 320 build limit, so clouds start above them.
@@ -178,7 +185,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(CLOUD_COVER, 0.64), Map.entry(CLOUD_HEIGHT_OFFSET, 160), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 6144), Map.entry(DETAIL_DISTANCE, 2048),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 360), Map.entry(STORM_DARKNESS, true),
-                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true),
+                    Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 280),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
             case CUSTOM -> Map.of();

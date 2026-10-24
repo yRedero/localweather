@@ -4,6 +4,7 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -15,6 +16,8 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.qendolin.betterclouds.clouds.Renderer;
 import com.qendolin.betterclouds.clouds.Resources;
+import com.qendolin.betterclouds.config.Config;
+import com.qendolin.betterclouds.config.ConfigManager;
 import com.qendolin.betterclouds.clouds.fog.FogProvider;
 
 import net.minecraft.client.Minecraft;
@@ -22,7 +25,9 @@ import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import redero.localweather.client.ClientWeather;
+import redero.localweather.client.LightningFlashes;
 import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
@@ -155,5 +160,30 @@ public abstract class RendererMixin {
     private void localweather$depthRange(CallbackInfo ci) {
         setDepthRange("u_depth_range");
         setResolution();
+        setFlashes();
+    }
+
+    @Shadow
+    private float cloudsHeight;
+
+    private final float[] localweather$flashes = new float[LightningFlashes.MAX * 4];
+
+    /** Gives the shading shader the current lightning flashes, relative to the camera. */
+    private void setFlashes() {
+        if (!BetterCloudsShaderPatch.active()) return;
+        int program = GL20.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int countLocation = GL20.glGetUniformLocation(program, "lw_flash_count");
+        if (countLocation < 0) return;
+        Minecraft mc = Minecraft.getInstance();
+        Vec3 camera = mc.gameRenderer.getMainCamera().getPosition();
+        float partialTick = mc.getTimer().getGameTimeDeltaPartialTick(false);
+        int count = LightningFlashes.write(camera.x, camera.z, partialTick, localweather$flashes);
+        GL20.glUniform1i(countLocation, count);
+        if (count == 0) return;
+        GL20.glUniform4fv(GL20.glGetUniformLocation(program, "lw_flashes"), localweather$flashes);
+        Config config = ConfigManager.instance();
+        // A little into the layer, so the glow sits where the clouds are thickest.
+        GL20.glUniform1f(GL20.glGetUniformLocation(program, "lw_cloud_y"),
+                (float) (cloudsHeight + config.yOffset + config.yRange * 0.3 - camera.y));
     }
 }
