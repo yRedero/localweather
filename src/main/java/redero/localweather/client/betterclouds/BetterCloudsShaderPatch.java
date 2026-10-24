@@ -98,8 +98,11 @@ public final class BetterCloudsShaderPatch {
                         float lw_z = 2.0 * LW_FAR * LW_NEAR / ((LW_FAR + LW_NEAR) - (2.0 * lw_d - 1.0) * (LW_FAR - LW_NEAR));
                         float lw_gn = u_depth_range.x;
                         float lw_gf = u_depth_range.y;
+                        // Clouds past the far plane would land exactly on it. LOD mods (Voxy) draw their far terrain after
+                        // the clouds, with its depth capped just in front of the far plane, so it would paint over every
+                        // far cloud. Cap cloud depth a few steps (of a 24-bit buffer) in front of that instead.
                         gl_FragDepth = lw_d >= 1.0 || lw_gf <= lw_gn ? lw_d
-                            : clamp(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_z) / (lw_gf - lw_gn) * 0.5 + 0.5, 0.0, 1.0);""".formatted(DEPTH_RANGE)},
+                            : min(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_z) / (lw_gf - lw_gn) * 0.5 + 0.5, 1.0 - 4.0 / 16777215.0);""".formatted(DEPTH_RANGE)},
             {"vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;", """
                     vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;
                         // Local Weather: the blue channel holds 8 darkness steps with the colour noise inside each step.
