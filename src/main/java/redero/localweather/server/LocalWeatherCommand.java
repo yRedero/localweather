@@ -38,6 +38,11 @@ public final class LocalWeatherCommand {
                 .then(Commands.literal("list").executes(LocalWeatherCommand::list))
                 .then(Commands.literal("here").executes(LocalWeatherCommand::here))
                 .then(Commands.literal("clear").executes(LocalWeatherCommand::clear))
+                .then(Commands.literal("cloudheight").executes(LocalWeatherCommand::cloudHeight)
+                        .then(Commands.literal("recompute").executes(ctx -> {
+                            AutoCloudHeight.reset(ctx.getSource().getLevel());
+                            return cloudHeight(ctx);
+                        })))
                 .then(Commands.literal("spawn")
                         .then(Commands.argument("type", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
@@ -81,6 +86,17 @@ public final class LocalWeatherCommand {
         String thunder = String.format(Locale.ROOT, "%.2f", data.thunderAt(pos.x, pos.z));
         source.sendSuccess(() -> Component.translatable("commands.localweather.here", rain, thunder), false);
         return 1;
+    }
+
+    private static int cloudHeight(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        ServerLevel level = source.getLevel();
+        if (!LocalWeatherApi.managed(level)) throw UNMANAGED.create();
+        int base = LocalWeatherApi.VANILLA_CLOUD_HEIGHT + AutoCloudHeight.offset(level);
+        String how = LocalWeatherServerConfig.autoHeight() ? "automatic, from the terrain" : "from cloudHeightOffset";
+        source.sendSuccess(() -> Component.literal("Cloud base: y=" + base + " (" + how + ")"), false);
+        WeatherSimulator.syncAll(level);
+        return base;
     }
 
     private static int clear(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

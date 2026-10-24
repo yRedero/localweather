@@ -53,7 +53,7 @@ public abstract class ServerLevelMixin {
                                                    @Local(argsOnly = true) BlockPos pos) {
         if (!LocalWeatherApi.managed(level)) return original.call(level);
         // Mountain tops above the cloud base get no snow and their cauldrons stay empty.
-        if (LocalWeatherApi.aboveCloudBase(level.getHeight(Heightmap.Types.MOTION_BLOCKING, pos.getX(), pos.getZ()))) return false;
+        if (LocalWeatherApi.aboveCloudBase(level, level.getHeight(Heightmap.Types.MOTION_BLOCKING, pos.getX(), pos.getZ()))) return false;
         return WeatherSavedData.get(level).rainAt(pos.getX() + 0.5, pos.getZ() + 0.5) > LocalWeatherApi.RAIN_THRESHOLD;
     }
 

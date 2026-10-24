@@ -23,6 +23,9 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
     /** Blocks per tick. */
     float windSpeed = 0.07F;
     private int nextId;
+    /** AutoCloudHeight's result and the build height it was worked out for; MIN_VALUE until then. */
+    int autoCloudBase = Integer.MIN_VALUE;
+    int autoBuildHeight;
 
     public static WeatherSavedData get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(FACTORY, NAME);
@@ -55,6 +58,10 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
         tag.putFloat("wind_angle", windAngle);
         tag.putFloat("wind_speed", windSpeed);
         tag.putInt("next_id", nextId);
+        if (autoCloudBase != Integer.MIN_VALUE) {
+            tag.putInt("auto_cloud_base", autoCloudBase);
+            tag.putInt("auto_build_height", autoBuildHeight);
+        }
         return tag;
     }
 
@@ -66,6 +73,10 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
         data.windAngle = tag.getFloat("wind_angle");
         if (tag.contains("wind_speed")) data.windSpeed = tag.getFloat("wind_speed");
         data.nextId = tag.getInt("next_id");
+        if (tag.contains("auto_cloud_base")) {
+            data.autoCloudBase = tag.getInt("auto_cloud_base");
+            data.autoBuildHeight = tag.getInt("auto_build_height");
+        }
         return data;
     }
 }

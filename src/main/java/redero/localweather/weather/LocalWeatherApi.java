@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.dimension.DimensionType;
+import redero.localweather.server.AutoCloudHeight;
 import redero.localweather.server.LocalWeatherServerConfig;
 import redero.localweather.server.WeatherSavedData;
 
@@ -38,9 +39,8 @@ public final class LocalWeatherApi {
     }
 
     /** True if the world's settings make it dry at this height: above the cloud base nothing falls. */
-    public static boolean aboveCloudBase(int y) {
-        return LocalWeatherServerConfig.dryAboveClouds()
-                && y >= VANILLA_CLOUD_HEIGHT + LocalWeatherServerConfig.cloudHeightOffset();
+    public static boolean aboveCloudBase(ServerLevel level, int y) {
+        return LocalWeatherServerConfig.dryAboveClouds() && y >= VANILLA_CLOUD_HEIGHT + AutoCloudHeight.offset(level);
     }
 
     /** The weather for this level, or null when vanilla weather should apply. */

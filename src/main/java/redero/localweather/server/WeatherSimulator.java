@@ -222,7 +222,7 @@ public final class WeatherSimulator {
             }
         }
         PacketDistributor.sendToPlayer(player, new WeatherSyncPayload(moving ? data.windX() : 0.0F, moving ? data.windZ() : 0.0F,
-                LocalWeatherServerConfig.cloudHeightOffset(), near));
+                AutoCloudHeight.offset(player.serverLevel()), near));
     }
 
     private static boolean farFromPlayers(ServerLevel level, StormCell cell) {

@@ -45,8 +45,8 @@ public final class LocalWeatherClientConfig {
         PRESET = b.comment("Fills in all settings below when changed. Afterwards each setting can still be tweaked.",
                         "DEFAULT: balanced. PERFORMANCE: shorter view, fewer extras. CINEMATIC: far view, tall storms.",
                         "VOXY_TECTONIC: for very tall terrain (Tectonic) and extreme render distances (Voxy, Distant Horizons):",
-                        "clouds ~160 blocks higher, drawn out to 6 km, taller storms. Pair it with the world config's",
-                        "heightPreset TECTONIC and weatherPreset HUGE_STORMS. CUSTOM: never changes anything.")
+                        "drawn out to 6 km, taller storms. Pair it with the world config's heightPreset AUTO (clouds above the",
+                        "real mountains) and weatherPreset HUGE_STORMS. CUSTOM: never changes anything.")
                 .defineEnum("preset", Preset.DEFAULT);
 
         b.comment("The cloud layer. Everything here needs Better Clouds installed.").push("clouds");

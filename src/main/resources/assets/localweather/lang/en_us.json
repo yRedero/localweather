@@ -73,7 +73,7 @@
   "localweather.configuration.cloudResolution": "Cloud resolution",
   "localweather.configuration.cloudResolution.tooltip": "Resolution clouds are drawn at, as a share of the screen's. 0.75 is hard to tell apart from 1 and saves a lot of GPU time; 0.5 even more.",
   "localweather.configuration.heightPreset": "Height preset",
-  "localweather.configuration.heightPreset.tooltip": "Fills in the cloud height settings when changed. VANILLA: 192. TECTONIC: +160, above Tectonic's mountains. TALL_TERRAIN: +320, for a raised build limit.",
+  "localweather.configuration.heightPreset.tooltip": "AUTO: clouds just above the world's real mountains, measured once per dimension (/localweather cloudheight recompute to redo). VANILLA: 192. TECTONIC: +160. TALL_TERRAIN: +320. CUSTOM: uses Cloud height offset as it is.",
   "localweather.configuration.weatherPreset": "Weather preset",
   "localweather.configuration.weatherPreset.tooltip": "Fills in the storm and wind settings when changed. DEFAULT, CALM, STORMY, or HUGE_STORMS for very far views.",
   "localweather.configuration.lightningFlashes": "Lightning flashes",

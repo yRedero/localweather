@@ -10,6 +10,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.WeatherView;
@@ -22,7 +23,7 @@ public abstract class LevelMixin {
         WeatherView view = LocalWeatherApi.view(level);
         if (view == null) return original.call(level);
         // Above the cloud base it's dry (server rule; clients get the world's cloud height synced).
-        if (!level.isClientSide() && LocalWeatherApi.aboveCloudBase(pos.getY())) return false;
+        if (level instanceof ServerLevel serverLevel && LocalWeatherApi.aboveCloudBase(serverLevel, pos.getY())) return false;
         return view.rainAt(pos.getX() + 0.5, pos.getZ() + 0.5) > LocalWeatherApi.RAIN_THRESHOLD;
     }
 

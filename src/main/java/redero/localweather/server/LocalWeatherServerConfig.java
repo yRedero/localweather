@@ -32,10 +32,11 @@ public final class LocalWeatherServerConfig {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
         b.comment("Cloud height. Sent to every player, so everyone sees clouds at the same height as the world's weather.").push("clouds");
-        HEIGHT_PRESET = b.comment("Fills in the settings below when changed.",
-                        "VANILLA: clouds at 192, as in vanilla. TECTONIC: +160, above Tectonic's mountains.",
-                        "TALL_TERRAIN: +320, for terrain mods with a raised build limit. CUSTOM: never changes anything.")
-                .defineEnum("heightPreset", HeightPreset.VANILLA);
+        HEIGHT_PRESET = b.comment("AUTO: the clouds go just above the world's real mountains, measured from the world generator",
+                        "once per dimension (redo with /localweather cloudheight recompute). cloudHeightOffset is ignored.",
+                        "VANILLA: clouds at 192. TECTONIC: +160, above default Tectonic's mountains. TALL_TERRAIN: +320.",
+                        "CUSTOM: uses cloudHeightOffset below as it is.")
+                .defineEnum("heightPreset", HeightPreset.AUTO);
         CLOUD_HEIGHT_OFFSET = b.comment("Moves the clouds up (or down) from the overworld's cloud height of 192, in blocks.",
                         "Players follow this unless they turn off 'Follow server cloud height' in their own config.")
                 .defineInRange("cloudHeightOffset", 0, -128, 1024);
@@ -81,7 +82,7 @@ public final class LocalWeatherServerConfig {
     public static void sync(ModConfig config) {
         boolean changed = false;
         HeightPreset height = HEIGHT_PRESET.get();
-        if (PresetMarker.changed(config, "heightPreset", height.name(), HeightPreset.VANILLA.name()) && height != HeightPreset.CUSTOM) {
+        if (PresetMarker.changed(config, "heightPreset", height.name(), HeightPreset.AUTO.name()) && height != HeightPreset.CUSTOM) {
             apply(heightValues(height));
             LocalWeather.LOGGER.info("Applied height preset {}", height);
             changed = true;
@@ -101,6 +102,10 @@ public final class LocalWeatherServerConfig {
     }
 
     // Getters fall back to the defaults when no world is loaded (the server config only exists with a world).
+
+    public static boolean autoHeight() {
+        return !SPEC.isLoaded() || HEIGHT_PRESET.get() == HeightPreset.AUTO;
+    }
 
     public static int cloudHeightOffset() {
         return SPEC.isLoaded() ? CLOUD_HEIGHT_OFFSET.get() : 0;
@@ -144,7 +149,7 @@ public final class LocalWeatherServerConfig {
         return (float) (SPEC.isLoaded() ? Math.max(WIND_MIN.get(), WIND_MAX.get()) : 2.4) / 20.0F;
     }
 
-    public enum HeightPreset { VANILLA, TECTONIC, TALL_TERRAIN, CUSTOM }
+    public enum HeightPreset { AUTO, VANILLA, TECTONIC, TALL_TERRAIN, CUSTOM }
 
     public enum WeatherPreset { DEFAULT, CALM, STORMY, HUGE_STORMS, CUSTOM }
 
@@ -152,6 +157,7 @@ public final class LocalWeatherServerConfig {
 
     private static Map<ModConfigSpec.ConfigValue<?>, Object> heightValues(HeightPreset preset) {
         return switch (preset) {
+            case AUTO -> Map.of(DRY_ABOVE_CLOUDS, true);
             case VANILLA -> Map.of(CLOUD_HEIGHT_OFFSET, 0, DRY_ABOVE_CLOUDS, true);
             case TECTONIC -> Map.of(CLOUD_HEIGHT_OFFSET, 160, DRY_ABOVE_CLOUDS, true);
             case TALL_TERRAIN -> Map.of(CLOUD_HEIGHT_OFFSET, 320, DRY_ABOVE_CLOUDS, true);

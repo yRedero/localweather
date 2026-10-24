@@ -25,10 +25,10 @@ Two config files, both editable in the mod list (Local Weather → Config). Pres
 
 - **Client** (`config/localweather-client.toml`), one `preset` (`DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`): cloud resolution, no rain above the clouds, cloud cover, cloud height offset (used without a Local Weather server), far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep.
 - **World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/localweather-server.toml`, which overrides it), two presets:
-  - `heightPreset` (`VANILLA` 192, `TECTONIC` +160, `TALL_TERRAIN` +320): cloud height and dry above the clouds.
+  - `heightPreset` (`AUTO`, the default; `VANILLA` 192, `TECTONIC` +160, `TALL_TERRAIN` +320): cloud height and dry above the clouds. `AUTO` asks the world generator for the surface height on a 25x25 grid over ±7.7 km around spawn (no chunks generated, on a background thread) and puts the cloud base above most peaks and at least above the highest sample. It's saved per dimension and redone if the build height changes; `/localweather cloudheight` shows it, `/localweather cloudheight recompute` redoes it.
   - `weatherPreset` (`DEFAULT`, `CALM`, `STORMY`, `HUGE_STORMS`): storm size, lifetime, count and frequency, shower and thunderstorm chance, wind speeds.
 
-For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = TECTONIC` and `weatherPreset = HUGE_STORMS`: clouds 160 blocks higher (above Tectonic's mountains), drawn out to 6 km, 360-block storm towers, and 1.6x larger, longer storms.
+For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = AUTO` and `weatherPreset = HUGE_STORMS`: clouds above the real mountains, drawn out to 6 km, 360-block storm towers, and 1.6x larger, longer storms.
 
 **Cloud height is the world's.** The world's `cloudHeightOffset` is synced to every player, who draw their clouds there (unless they turn off `followServerCloudHeight`), and with `dryAboveClouds` the server treats everything above the cloud base as dry: no wetness, snow, cauldron filling or lightning.
 
