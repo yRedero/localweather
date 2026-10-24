@@ -45,8 +45,10 @@ public final class BetterCloudsShaderPatch {
                     vec3 scale = SIZE * dynScale * scaleFalloff;
                         scale *= lw_size;
                         scale.y *= mix(1.0, 0.2, lw_flat);"""},
-            {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;",
-                    "pass_color.b = (lw_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"},
+            // Storm clouds are dark from below but sunlit from above: looking down at one, most of the darkness goes.
+            {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
+                    float lw_seen_dark = floor(lw_dark * mix(1.0, 0.25, smoothstep(0.0, -0.3, worldDirection.y)) + 0.5);
+                        pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
     };
 
     private static final String[][] COVERAGE_DEPTH = {

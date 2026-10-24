@@ -34,6 +34,15 @@ import redero.localweather.weather.WeatherView;
 public final class CloudGenContext implements WeatherView {
     /** Extra clouds (towers, decks, high layer) may use at most this share of Better Clouds' buffer. */
     private static final float EXTRA_SHARE = 0.6F;
+    /** ...and never more than this many, whatever the buffer size: each one is a big translucent cube to draw. */
+    private static final int MAX_EXTRAS = 300_000;
+    /**
+     * Inside a storm's rain area the deck is solid anyway, so it's built from every 2nd point at twice the size:
+     * the same look from outside with a quarter of the cubes, most of which would only be hidden behind others.
+     */
+    private static final float DECK_RAIN = 0.35F;
+    /** Thunderheads rise only where the convection noise is above this, so towers stand apart instead of a wall. */
+    private static final double TOWER_NOISE = 0.25;
     /** Width of the dithered band between detail levels, in blocks. */
     private static final double LOD_BLEND = 300.0;
 
@@ -104,7 +113,7 @@ public final class CloudGenContext implements WeatherView {
 
         // Same formula as Better Clouds' ChunkedGenerator#calcBufferSize: the buffer holds size * size clouds.
         int size = BetterCloudsCompat.bufferSize(options, Mth.floor(blockDistance / spacing) + Mth.ceil(blockDistance / spacing));
-        this.extraBudget = (int) ((long) size * size * EXTRA_SHARE);
+        this.extraBudget = (int) Math.min((long) size * size * EXTRA_SHARE, MAX_EXTRAS);
     }
 
     /** Null when the client config isn't loaded yet; Better Clouds then generates as usual. */
@@ -140,12 +149,14 @@ public final class CloudGenContext implements WeatherView {
         step = lodStep(x, z);
         if (step == 0) return 0.0F;
 
-        boolean kept = onGrid(x, z, step);
+        boolean onBaseGrid = onGrid(x, z, step);
         boolean highGrid = high && onGrid(x, z, Math.max(3, step));
-        if (!kept && !highGrid) return 0.0F;
+        if (!onBaseGrid && !highGrid) return 0.0F;
 
         stormAt(x, z);
-        towerGrid = onGrid(x, z, Math.max(2, step));
+        if (lod && rain > DECK_RAIN) step = Math.max(step, 2);
+        boolean kept = onGrid(x, z, step);
+        towerGrid = onGrid(x, z, Math.max(4, step * 2));
         if (highGrid) highStrength = highLayerAt(x, z);
 
         float value = 0.0F;
@@ -153,7 +164,8 @@ public final class CloudGenContext implements WeatherView {
             stats[step][0]++;
             value = sampler.sample(cloudinessAt());
             // Better Clouds' noise leaves holes even at full cover; where it rains there's always a cloud above.
-            if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain));
+            // Varied strength: Better Clouds sets height from it, and equal heights would z-fight from above.
+            if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain) * (0.8F + 0.4F * hash(x, z, 31)));
             if (value > 0.0F) stats[step][1]++;
         }
         if (value <= 0.0F && highStrength > 0.0F) {
@@ -178,11 +190,12 @@ public final class CloudGenContext implements WeatherView {
         // Better Clouds' second, lower puff for very dense samples: no extras on top of it.
         if (pointsThisSample > 1) return new CloudCode(x, y, z, y, y, code(size, dark, false));
 
-        if (thick && rain > 0.4F) {
+        // One puff on every 4th deck cloud is enough to make the deck read as thicker.
+        if (thick && rain > 0.4F && towerGrid) {
             queue(x, y + sizeY * size * 0.6, z, size, dark * 0.9F, false, 0.35, 1);
         }
         if (towers && towerGrid && thunder > 0.25F) {
-            int towerSize = Math.max(2, step);
+            int towerSize = Math.max(3, step);
             double levelStep = sizeY * towerSize * 0.8;
             int levels = (int) (towerHeight * thunder * towerShape / levelStep);
             for (int i = 1; i <= levels; i++) {
@@ -246,7 +259,7 @@ public final class CloudGenContext implements WeatherView {
         cover = storm[2];
         if (thunder > 0.0F) {
             double cellsNoise = STORM_NOISE.getValue((x + originX) / 380.0 + 91.0, (z + originZ) / 380.0 + 91.0);
-            towerShape = (float) (0.3 + 0.7 * Math.max(0.0, cellsNoise));
+            towerShape = (float) Math.max(0.0, (cellsNoise - TOWER_NOISE) / (1.0 - TOWER_NOISE));
         }
     }
 

@@ -59,7 +59,9 @@ public final class DevScene {
     }
 
     private static void place(ServerLevel level, WeatherSavedData data, CellType type, double x, double z, float radius) {
-        var cell = WeatherSimulator.spawn(data, type, x, z, radius, level.random);
+        // Scaled like natural storms, so presets with bigger storms show their real cost.
+        float scaled = (float) (radius * LocalWeatherServerConfig.stormSize());
+        var cell = WeatherSimulator.spawn(data, type, x, z, scaled, level.random);
         cell.intensity = 1.0F;
         if (type == CellType.THUNDERSTORM) cell.thunder = 1.0F;
         // Middle of its life: fully formed and nowhere near fading.
