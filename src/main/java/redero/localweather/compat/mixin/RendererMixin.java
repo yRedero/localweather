@@ -1,6 +1,8 @@
 package redero.localweather.compat.mixin;
 
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.system.MemoryStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,6 +26,7 @@ import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
+import redero.localweather.client.betterclouds.VoxyDepth;
 
 @Mixin(value = Renderer.class, remap = false)
 public abstract class RendererMixin {
@@ -32,6 +35,35 @@ public abstract class RendererMixin {
     private void localweather$coverageDepthRange(CallbackInfo ci) {
         setDepthRange("lw_depth_range");
         setResolution();
+        bindLodDepth();
+    }
+
+    /** Texture unit for Voxy's depth; Better Clouds' coverage pass uses units 0, 5 and 6. */
+    private static final int LOD_UNIT = 7;
+
+    /** Gives the coverage shader Voxy's depth, so far Voxy terrain hides the clouds behind it. */
+    private void bindLodDepth() {
+        if (!BetterCloudsShaderPatch.active()) return;
+        int program = GL20.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int info = GL20.glGetUniformLocation(program, "lw_lod_info");
+        if (info < 0) return;
+        VoxyDepth.Snapshot voxy = VoxyDepth.current();
+        if (voxy == null) {
+            GL20.glUniform2f(info, 0.0F, 0.0F);
+            return;
+        }
+        int previousUnit = GL20.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+        GlStateManager._activeTexture(GL13.GL_TEXTURE0 + LOD_UNIT);
+        GlStateManager._bindTexture(voxy.texture());
+        GlStateManager._activeTexture(previousUnit);
+        GL20.glUniform1i(GL20.glGetUniformLocation(program, "lw_lod_depth"), LOD_UNIT);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            GL20.glUniformMatrix4fv(GL20.glGetUniformLocation(program, "lw_lod_inv_proj"), false,
+                    voxy.inverseProjection().get(stack.mallocFloat(16)));
+        }
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        GL20.glUniform2f(GL20.glGetUniformLocation(program, "lw_screen_inv"), 1.0F / main.width, 1.0F / main.height);
+        GL20.glUniform2f(info, 1.0F, voxy.zeroToOne() ? 1.0F : 0.0F);
     }
 
     /**

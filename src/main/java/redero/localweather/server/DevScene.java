@@ -1,9 +1,11 @@
 package redero.localweather.server;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.Level;
 import redero.localweather.LocalWeather;
 import redero.localweather.weather.CellType;
@@ -19,6 +21,8 @@ public final class DevScene {
     public static final boolean INSIDE = "inside".equals(MODE);
     /** -PdevScene=above: the normal storms, seen from high above the clouds (spectator), looking down. */
     public static final boolean ABOVE = "above".equals(MODE);
+    /** -PdevScene=ground: the normal storms, standing on the ground wherever the player was. */
+    public static final boolean GROUND = "ground".equals(MODE);
 
     private DevScene() {
     }
@@ -49,6 +53,12 @@ public final class DevScene {
         level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(false, server);
         level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
         level.setDayTime(6000);
+        if (GROUND) {
+            // Load the chunk first: an unloaded chunk reports the bottom of the world as its surface.
+            level.getChunkAt(BlockPos.containing(x, 0, z));
+            int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING, (int) Math.floor(x), (int) Math.floor(z));
+            player.teleportTo(x, top + 1.0, z);
+        }
         if (ABOVE) {
             // Above even raised clouds (Voxy + Tectonic preset: base ~352, towers to ~720).
             player.setGameMode(GameType.SPECTATOR);

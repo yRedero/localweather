@@ -50,6 +50,7 @@ For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = T
 ./gradlew runClient -PquickPlay="New World" -PdevScene   # storms around you, screenshots to run/screenshots, then quits
 ./gradlew runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
 ./gradlew runClient -PquickPlay="New World" -PdevScene=above    # same storms, seen from high above the clouds
+./gradlew runClient -PquickPlay="New World" -PdevScene=ground   # same storms, standing on the ground
 ./gradlew runGameTestServer   # gametest/LocalWeatherTests
 ```
 

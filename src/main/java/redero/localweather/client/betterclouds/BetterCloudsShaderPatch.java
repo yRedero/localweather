@@ -66,7 +66,13 @@ public final class BetterCloudsShaderPatch {
                     uniform sampler2D u_depth_texture;
                     // Local Weather: the game's near and far plane, and cloud resolution / screen resolution, set by RendererMixin.
                     uniform vec2 lw_depth_range;
-                    uniform vec2 lw_resolution;"""},
+                    uniform vec2 lw_resolution;
+                    // Voxy's own depth (x of lw_lod_info: 1 if bound, y: 1 if stored 0..1), its inverse projection, and
+                    // 1 / screen size to turn full-resolution pixel coordinates into texture coordinates.
+                    uniform sampler2D lw_lod_depth;
+                    uniform mat4 lw_lod_inv_proj;
+                    uniform vec2 lw_lod_info;
+                    uniform vec2 lw_screen_inv;"""},
             // With a lower cloud resolution this pass runs on a smaller target; the depth textures are full size.
             {"void main() {", """
                     void main() {
@@ -74,8 +80,8 @@ public final class BetterCloudsShaderPatch {
             {"ivec2(gl_FragCoord.xy)", "ivec2(gl_FragCoord.xy / lw_res)"},
             // Terrain hides clouds by comparing view distances rather than depths: past the game's far plane the
             // cloud's depth is clamped and would lose against anything. Terrain depth near or past the far plane
-            // comes from LOD mods (Voxy, Distant Horizons) with their own projection and can't be compared; it
-            // doesn't hide clouds, which sit above that terrain in all but rare cases.
+            // comes from LOD mods with their own projection: for Voxy its own depth gives the real distance; other
+            // LOD terrain (Distant Horizons) can't be compared and doesn't hide clouds.
             {"if(min(gl_FragCoord.z, 1.0) > depth) discard;", """
                     // gl_FragCoord.z holds the clouds' own long-range depth (set in the vertex shader); terrain
                         // tests need the game's depth, rebuilt here from the view distance.
@@ -88,6 +94,15 @@ public final class BetterCloudsShaderPatch {
                             bool lw_trusted = lw_scene < 0.9 * lw_gf;
                             if (lw_trusted && lw_w > lw_scene) discard;
                             if (!lw_trusted && lw_w < 0.9 * lw_gf && lw_game_depth > depth) discard;
+                            if (!lw_trusted && lw_lod_info.x > 0.5) {
+                                vec2 lw_uv = gl_FragCoord.xy / lw_res * lw_screen_inv;
+                                float lw_lod = texture(lw_lod_depth, lw_uv).r;
+                                if (lw_lod > 0.0 && lw_lod < 1.0) {
+                                    vec4 lw_view = lw_lod_inv_proj * vec4(lw_uv * 2.0 - 1.0, lw_lod_info.y > 0.5 ? lw_lod : lw_lod * 2.0 - 1.0, 1.0);
+                                    float lw_terrain = -lw_view.z / lw_view.w;
+                                    if (lw_terrain > 0.0 && lw_terrain < lw_w) discard;
+                                }
+                            }
                         }"""},
     };
 
@@ -101,13 +116,10 @@ public final class BetterCloudsShaderPatch {
                         float lw_gf = u_depth_range.y;
                         // Clouds past the far plane would land exactly on it. LOD mods (Voxy) draw their far terrain after
                         // the clouds, with its depth capped just in front of the far plane, so it would paint over every
-                        // far cloud. Cap cloud depth a few steps (of a 24-bit buffer) in front of that instead, but only
-                        // for clouds that are at least half opaque: behind a thin fringe there's only sky at this point,
-                        // and as clouds drift those fringe pixels would make the far terrain shimmer.
-                        const float LW_LOD_CAP = 1.0 - 4.0 / 16777215.0;
-                        float lw_game = lw_d >= 1.0 || lw_gf <= lw_gn ? lw_d
-                            : ((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_z) / (lw_gf - lw_gn) * 0.5 + 0.5;
-                        gl_FragDepth = lw_game < LW_LOD_CAP ? lw_game : (out_color.a >= 0.5 ? LW_LOD_CAP : 1.0);""".formatted(DEPTH_RANGE)},
+                        // far cloud. Cap cloud depth a few steps (of a 24-bit buffer) in front of that instead; clouds behind
+                        // Voxy terrain were already dropped in the coverage pass using Voxy's own depth.
+                        gl_FragDepth = lw_d >= 1.0 || lw_gf <= lw_gn ? lw_d
+                            : min(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_z) / (lw_gf - lw_gn) * 0.5 + 0.5, 1.0 - 4.0 / 16777215.0);""".formatted(DEPTH_RANGE)},
             {"vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;", """
                     vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;
                         // Local Weather: the blue channel holds 8 darkness steps with the colour noise inside each step.
