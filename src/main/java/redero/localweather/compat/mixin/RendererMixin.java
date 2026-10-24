@@ -11,14 +11,25 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.qendolin.betterclouds.clouds.Renderer;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.AABB;
+import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 
 @Mixin(value = Renderer.class, remap = false)
 public abstract class RendererMixin {
+    /** Lifts every cloud by the configured offset, e.g. above Tectonic's mountains. */
+    @WrapOperation(method = "prepare", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/DimensionSpecialEffects;getCloudHeight()F"))
+    private float localweather$cloudHeight(DimensionSpecialEffects effects, Operation<Float> original) {
+        float height = original.call(effects);
+        if (Float.isNaN(height) || !LocalWeatherClientConfig.SPEC.isLoaded()) return height;
+        return height + LocalWeatherClientConfig.CLOUD_HEIGHT_OFFSET.get();
+    }
+
     /** Our clouds can be up to 4x Better Clouds' size, so chunk boxes need this much extra margin. */
     private static final double CLOUD_MARGIN = 32.0;
 

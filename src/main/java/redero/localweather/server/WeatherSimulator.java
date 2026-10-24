@@ -25,13 +25,9 @@ public final class WeatherSimulator {
     private static final double DESPAWN_RANGE = 6000.0;
     /** Players are told about cells whose weather system comes within this range. */
     private static final double SYNC_RANGE = 6000.0;
-    /**
-     * A player gets no new cells while this many are already within {@link #CROWD_RANGE}. Storms are big, so
-     * two at a time already covers a lot of sky; more would leave little fair weather.
-     */
-    private static final int MAX_NEARBY = 2;
+    /** A player gets no new cells while LocalWeatherServerConfig#maxStormsNearby are already within this range. */
     private static final double CROWD_RANGE = 9000.0;
-    /** On average one spawn attempt per player every this many steps. */
+    /** At storm frequency 1, on average one spawn attempt per player every this many steps. */
     private static final int SPAWN_ODDS = 150;
 
     private WeatherSimulator() {
@@ -54,7 +50,8 @@ public final class WeatherSimulator {
     private static void step(ServerLevel level, WeatherSavedData data) {
         RandomSource random = level.random;
         data.windAngle += (float) random.nextGaussian() * 0.02F;
-        data.windSpeed = Mth.clamp(data.windSpeed + (float) random.nextGaussian() * 0.002F, 0.03F, 0.12F);
+        data.windSpeed = Mth.clamp(data.windSpeed + (float) random.nextGaussian() * 0.002F,
+                LocalWeatherServerConfig.windMin(), LocalWeatherServerConfig.windMax());
         float windX = data.windX();
         float windZ = data.windZ();
 
@@ -68,7 +65,8 @@ public final class WeatherSimulator {
         data.cells.removeIf(cell -> cell.age >= cell.lifetime || farFromPlayers(level, cell));
 
         for (ServerPlayer player : level.players()) {
-            if (random.nextInt(SPAWN_ODDS) == 0 && countNear(data, player.getX(), player.getZ()) < MAX_NEARBY) {
+            if (random.nextDouble() * SPAWN_ODDS < LocalWeatherServerConfig.stormFrequency()
+                    && countNear(data, player.getX(), player.getZ()) < LocalWeatherServerConfig.maxStormsNearby()) {
                 trySpawnUpwind(level, data, player, random);
             }
         }
@@ -80,9 +78,12 @@ public final class WeatherSimulator {
      * in instead of popping up overhead. Their outer clouds may already reach the player while they form.
      */
     private static void trySpawnUpwind(ServerLevel level, WeatherSavedData data, ServerPlayer player, RandomSource random) {
-        float roll = random.nextFloat();
-        CellType type = roll < 0.35F ? CellType.SHOWER : roll < 0.85F ? CellType.RAIN : CellType.THUNDERSTORM;
-        float radius = type.rollRadius(random);
+        double roll = random.nextDouble();
+        double shower = LocalWeatherServerConfig.showerChance();
+        CellType type = roll < shower ? CellType.SHOWER
+                : roll < shower + LocalWeatherServerConfig.thunderstormChance() ? CellType.THUNDERSTORM
+                : CellType.RAIN;
+        float radius = rollRadius(type, random);
 
         float dirX = (float) Math.cos(data.windAngle);
         float dirZ = (float) Math.sin(data.windAngle);
@@ -95,7 +96,7 @@ public final class WeatherSimulator {
         if (random.nextFloat() > spawnWeight(biome)) return;
         if (type == CellType.THUNDERSTORM && biome.getBaseTemperature() < 0.5F) {
             type = CellType.RAIN;
-            radius = type.rollRadius(random);
+            radius = rollRadius(type, random);
         }
         spawn(data, type, x, z, radius, random);
     }
@@ -107,10 +108,16 @@ public final class WeatherSimulator {
         return 0.35F + 0.65F * Mth.clamp(downfall, 0.0F, 1.0F);
     }
 
+    /** A radius for a new storm of this type, scaled by the server's storm size setting. */
+    public static float rollRadius(CellType type, RandomSource random) {
+        return (float) (type.rollRadius(random) * LocalWeatherServerConfig.stormSize());
+    }
+
     public static StormCell spawn(WeatherSavedData data, CellType type, double x, double z, float radius, RandomSource random) {
         StormCell cell = new StormCell(data.nextId(), type, x, z, radius, type.rollIntensity(random),
                 // Storms ride the wind closely: clients drift the clouds with the same wind, so storms stay put among them.
-                type.rollThunder(random), 0.95F + random.nextFloat() * 0.1F, type.rollLifetime(random));
+                type.rollThunder(random), 0.95F + random.nextFloat() * 0.1F,
+                Math.max(20, (int) (type.rollLifetime(random) * LocalWeatherServerConfig.stormLifetime())));
         cell.vx = data.windX() * cell.windFactor;
         cell.vz = data.windZ() * cell.windFactor;
         data.cells.add(cell);
@@ -134,7 +141,7 @@ public final class WeatherSimulator {
         } else {
             CellType type = thundering ? CellType.THUNDERSTORM : CellType.RAIN;
             for (ServerPlayer player : level.players()) {
-                StormCell cell = spawn(data, type, player.getX(), player.getZ(), type.rollRadius(level.random), level.random);
+                StormCell cell = spawn(data, type, player.getX(), player.getZ(), rollRadius(type, level.random), level.random);
                 skipForming(cell);
                 if (duration > 0) cell.lifetime = cell.age + duration;
             }

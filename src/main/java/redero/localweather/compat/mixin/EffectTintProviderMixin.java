@@ -19,20 +19,22 @@ import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
  */
 @Mixin(value = EffectTintProvider.class, remap = false)
 public abstract class EffectTintProviderMixin {
-    private static final float KEEP = 0.35F;
-
     @WrapOperation(method = "getCloudsColor", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/multiplayer/ClientLevel;getRainLevel(F)F"))
     private static float localweather$softRain(ClientLevel level, float partialTick, Operation<Float> original) {
         float rain = original.call(level, partialTick);
-        return perCloudDarkness() ? rain * KEEP : rain;
+        return perCloudDarkness() ? rain * keep() : rain;
     }
 
     @WrapOperation(method = "getCloudsColor", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/multiplayer/ClientLevel;getThunderLevel(F)F"))
     private static float localweather$softThunder(ClientLevel level, float partialTick, Operation<Float> original) {
         float thunder = original.call(level, partialTick);
-        return perCloudDarkness() ? thunder * KEEP : thunder;
+        return perCloudDarkness() ? thunder * keep() : thunder;
+    }
+
+    private static float keep() {
+        return LocalWeatherClientConfig.GLOBAL_TINT.get().floatValue();
     }
 
     private static boolean perCloudDarkness() {

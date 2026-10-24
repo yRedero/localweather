@@ -3,6 +3,8 @@ package redero.localweather.client.betterclouds;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.qendolin.betterclouds.config.Config;
+
 import net.minecraft.util.Mth;
 import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LocalWeatherClientConfig;
@@ -26,6 +28,30 @@ public final class BetterCloudsCompat {
     private static long lastSignature;
 
     private BetterCloudsCompat() {
+    }
+
+    /** Extra clouds (towers, decks, high layer) per base cloud the buffer leaves room for. */
+    private static final double EXTRA_ROOM = 1.5;
+
+    /**
+     * Better Clouds sizes its buffer for one cloud on every grid point out to the cloud distance. With far
+     * clouds most far points are skipped, so at 6 km that would reserve ~5x the memory ever used. This sizes it
+     * for the points the level of detail can keep, plus room for stacked storm clouds.
+     *
+     * @param original Better Clouds' size before its bottom-sparsity doubling (the buffer holds size * size)
+     */
+    public static int bufferSize(Config options, int original) {
+        int doubling = options.bottomSparsity > 0.0F ? 2 : 1;
+        if (!farCloudsActive()) return (original > 0 ? original : 128) * doubling;
+        double distance = options.blockDistance();
+        double detail = Math.min(LocalWeatherClientConfig.DETAIL_DISTANCE.get(), distance);
+        double coarse = Math.min(2.0 * detail, distance);
+        double spacing = options.spacing;
+        double points = Math.PI / (spacing * spacing)
+                * (detail * detail + (coarse * coarse - detail * detail) / 4.0 + (distance * distance - coarse * coarse) / 16.0);
+        // The dithered detail boundary keeps a few extra points; 10% covers it.
+        int size = (int) Math.ceil(Math.sqrt(points * 1.1 * (1.0 + EXTRA_ROOM)));
+        return Math.min(size, original > 0 ? original * 2 : 128) * doubling;
     }
 
     /** True when clouds are generated past Better Clouds' own distance (see ConfigMixin). */

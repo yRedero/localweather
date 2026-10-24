@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -25,6 +26,13 @@ public abstract class ChunkedGeneratorMixin {
     private double originX;
     @Shadow
     private double originZ;
+
+    /** Size the cloud buffer for what far clouds can actually hold instead of every grid point. */
+    @ModifyReturnValue(method = "calcBufferSize", at = @At("RETURN"))
+    private static int localweather$bufferSize(int size, Config options) {
+        int doubling = options.bottomSparsity > 0.0F ? 2 : 1;
+        return BetterCloudsCompat.bufferSize(options, size / doubling);
+    }
 
     /** Rebuild the clouds, cache included, when storms have visibly moved or changed strength. */
     @Inject(method = "update", at = @At("HEAD"))

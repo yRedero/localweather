@@ -105,7 +105,7 @@ public final class LocalWeatherCommand {
         }
         ServerLevel level = source.getLevel();
         Vec3 pos = source.getPosition();
-        float r = radius > 0 ? radius : type.rollRadius(level.random);
+        float r = radius > 0 ? radius : WeatherSimulator.rollRadius(type, level.random);
         StormCell cell = WeatherSimulator.spawn(data, type, pos.x, pos.z, r, level.random);
         WeatherSimulator.skipForming(cell);
         WeatherSimulator.syncAll(level);

@@ -126,7 +126,9 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     /** Overcast at the camera, 0..1, or 0 without local weather. */
     public float gloom(float partialTick) {
-        return active ? Mth.lerp(partialTick, oGloom, gloom) : 0.0F;
+        if (!active) return 0.0F;
+        float strength = LocalWeatherClientConfig.SPEC.isLoaded() ? LocalWeatherClientConfig.SKY_GLOOM.get().floatValue() : 1.0F;
+        return strength * Mth.lerp(partialTick, oGloom, gloom);
     }
 
     /** Greys and dims a sky or fog colour by the overcast, short of what rain itself does. */

@@ -34,10 +34,6 @@ import redero.localweather.weather.WeatherView;
 public final class CloudGenContext implements WeatherView {
     /** Extra clouds (towers, decks, high layer) may use at most this share of Better Clouds' buffer. */
     private static final float EXTRA_SHARE = 0.6F;
-    /** Tallest tower above the cloud deck, in blocks. */
-    private static final float TOWER_HEIGHT = 240.0F;
-    /** Anvil altitude above the cloud base, in blocks. */
-    private static final float ANVIL_HEIGHT = 250.0F;
     /** Width of the dithered band between detail levels, in blocks. */
     private static final double LOD_BLEND = 300.0;
 
@@ -55,6 +51,9 @@ public final class CloudGenContext implements WeatherView {
     private final int blockDistance, detailDistance;
     private final boolean encode, lod, towers, darkness, thick, high;
     private final float highHeight;
+    /** Tallest tower above the cloud deck, in blocks; the anvil sits just above. */
+    private final float towerHeight;
+    private final float darknessStrength;
     private final float cloudCover;
     private final int extraBudget;
 
@@ -99,11 +98,12 @@ public final class CloudGenContext implements WeatherView {
         this.thick = LocalWeatherClientConfig.THICK_RAIN_CLOUDS.get();
         this.high = encode && LocalWeatherClientConfig.HIGH_LAYER.get();
         this.highHeight = LocalWeatherClientConfig.HIGH_LAYER_HEIGHT.get();
+        this.towerHeight = LocalWeatherClientConfig.TOWER_HEIGHT.get();
+        this.darknessStrength = LocalWeatherClientConfig.DARKNESS_STRENGTH.get().floatValue();
         this.cloudCover = LocalWeatherClientConfig.CLOUD_COVER.get().floatValue();
 
         // Same formula as Better Clouds' ChunkedGenerator#calcBufferSize: the buffer holds size * size clouds.
-        int size = Mth.floor(blockDistance / spacing) + Mth.ceil(blockDistance / spacing);
-        size = (size > 0 ? size : 128) * (options.bottomSparsity > 0.0F ? 2 : 1);
+        int size = BetterCloudsCompat.bufferSize(options, Mth.floor(blockDistance / spacing) + Mth.ceil(blockDistance / spacing));
         this.extraBudget = (int) ((long) size * size * EXTRA_SHARE);
     }
 
@@ -168,7 +168,7 @@ public final class CloudGenContext implements WeatherView {
         if (highOnly) return highCloud(x, z, size);
 
         // Dark where it actually rains, so a dark cloud overhead means rain.
-        float dark = darkness ? Mth.clamp(Math.max(0.85F * thunder, 0.75F * smoothstep(0.15F, 0.55F, rain)), 0.0F, 1.0F) : 0.0F;
+        float dark = darkness ? darknessStrength * Mth.clamp(Math.max(0.85F * thunder, 0.75F * smoothstep(0.15F, 0.55F, rain)), 0.0F, 1.0F) : 0.0F;
         if (dark > 0.1F) stats[step][2]++;
         // Rain decks hang a little lower than fair-weather clouds.
         if (thick) y -= 20.0 * rain;
@@ -181,12 +181,12 @@ public final class CloudGenContext implements WeatherView {
         if (towers && towerGrid && thunder > 0.25F) {
             int towerSize = Math.max(2, step);
             double levelStep = sizeY * towerSize * 0.8;
-            int levels = (int) (TOWER_HEIGHT * thunder * towerShape / levelStep);
+            int levels = (int) (towerHeight * thunder * towerShape / levelStep);
             for (int i = 1; i <= levels; i++) {
                 queue(x, y + i * levelStep, z, towerSize, dark * (1.0F - 0.75F * i / levels), false, 0.3, 10 + i);
             }
             // The anvil spreads wider than the towers: any point of the storm core gets a flat puff up there.
-            double anvilY = yOffset + ANVIL_HEIGHT + 8.0 * (hash(sampleX, sampleZ, 3) - 0.5);
+            double anvilY = yOffset + towerHeight + 10.0 + 8.0 * (hash(sampleX, sampleZ, 3) - 0.5);
             queue(x, anvilY, z, towerSize, dark * 0.25F, true, 0.45, 4);
             towerPieces += levels + 1;
         }

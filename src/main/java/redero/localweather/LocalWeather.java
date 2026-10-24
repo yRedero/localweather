@@ -9,6 +9,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -17,6 +18,7 @@ import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.net.WeatherSyncPayload;
 import redero.localweather.server.DevScene;
 import redero.localweather.server.LocalWeatherCommand;
+import redero.localweather.server.LocalWeatherServerConfig;
 import redero.localweather.server.WeatherSimulator;
 
 @Mod(LocalWeather.MODID)
@@ -26,11 +28,28 @@ public class LocalWeather {
 
     public LocalWeather(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.CLIENT, LocalWeatherClientConfig.SPEC);
+        container.registerConfig(ModConfig.Type.SERVER, LocalWeatherServerConfig.SPEC);
+        modBus.addListener(LocalWeather::onConfigLoad);
+        modBus.addListener(LocalWeather::onConfigReload);
         modBus.addListener(LocalWeather::registerPayloads);
         NeoForge.EVENT_BUS.addListener((RegisterCommandsEvent event) -> LocalWeatherCommand.register(event.getDispatcher()));
         NeoForge.EVENT_BUS.addListener(LocalWeather::onLoggedIn);
         NeoForge.EVENT_BUS.addListener(LocalWeather::onChangedDimension);
         NeoForge.EVENT_BUS.addListener(LocalWeather::onRespawn);
+    }
+
+    // A changed preset (config screen, file edit, or edited while the game was closed) fills in its values.
+    private static void onConfigLoad(ModConfigEvent.Loading event) {
+        syncPreset(event.getConfig());
+    }
+
+    private static void onConfigReload(ModConfigEvent.Reloading event) {
+        syncPreset(event.getConfig());
+    }
+
+    private static void syncPreset(ModConfig config) {
+        if (config.getSpec() == LocalWeatherClientConfig.SPEC) LocalWeatherClientConfig.sync(config);
+        if (config.getSpec() == LocalWeatherServerConfig.SPEC) LocalWeatherServerConfig.sync(config);
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
