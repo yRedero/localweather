@@ -56,7 +56,10 @@ public abstract class ChunkedGeneratorTaskMixin {
                                       Operation<Float> original) {
         CloudGenContext context = localweather$context;
         if (context == null) return original.call(sampler, x, z, cloudiness, fuzziness, scale);
-        return context.sample(x, z, cloudiness, c -> original.call(sampler, x, z, c, fuzziness, scale));
+        float value = context.begin(x, z, cloudiness)
+                ? original.call(sampler, x, z, context.sampleCloudiness(), fuzziness, scale)
+                : 0.0F;
+        return context.finish(value);
     }
 
     @WrapOperation(method = "genSamplePoints", at = @At(value = "NEW", target = "net/minecraft/world/phys/AABB"))

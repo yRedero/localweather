@@ -20,6 +20,7 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.BooleanValue FOLLOW_SERVER_CLOUD_HEIGHT;
     public static final ModConfigSpec.IntValue CLOUD_HEIGHT_OFFSET;
     public static final ModConfigSpec.BooleanValue FAR_CLOUDS;
+    public static final ModConfigSpec.DoubleValue CLOUD_RESOLUTION;
     public static final ModConfigSpec.IntValue CLOUD_DISTANCE;
     public static final ModConfigSpec.IntValue DETAIL_DISTANCE;
 
@@ -56,6 +57,10 @@ public final class LocalWeatherClientConfig {
                 .defineInRange("cloudHeightOffset", 0, -128, 1024);
         FAR_CLOUDS = b.comment("Draw clouds further than Better Clouds allows, with less detail far away.")
                 .define("farClouds", true);
+        CLOUD_RESOLUTION = b.comment("Resolution clouds are drawn at, as a share of the screen's (on top of Better Clouds' own",
+                        "upscale setting). Clouds are soft, so 0.6-0.75 is hard to tell apart and saves a lot of GPU time:",
+                        "most of their cost is per pixel, from many see-through cloud layers overlapping.")
+                .defineInRange("cloudResolution", 0.75, 0.25, 1.0);
         CLOUD_DISTANCE = b.comment("How far clouds are drawn, in blocks. Better Clouds' own limit is 4x your render distance.",
                         "Higher values cost generation time and GPU time.")
                 .defineInRange("cloudDistance", 2560, 512, 8192);
@@ -143,6 +148,7 @@ public final class LocalWeatherClientConfig {
     private static Map<ModConfigSpec.ConfigValue<?>, Object> presetValues(Preset preset) {
         return switch (preset) {
             case DEFAULT -> Map.ofEntries(
+                    Map.entry(CLOUD_RESOLUTION, 0.75),
                     Map.entry(CLOUD_COVER, 0.62), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 2560), Map.entry(DETAIL_DISTANCE, 1536),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 240), Map.entry(STORM_DARKNESS, true),
@@ -150,6 +156,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 160),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case PERFORMANCE -> Map.ofEntries(
+                    Map.entry(CLOUD_RESOLUTION, 0.5),
                     Map.entry(CLOUD_COVER, 0.6), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 1536), Map.entry(DETAIL_DISTANCE, 768),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 160), Map.entry(STORM_DARKNESS, true),
@@ -157,6 +164,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(HIGH_LAYER, false), Map.entry(HIGH_LAYER_HEIGHT, 160),
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case CINEMATIC -> Map.ofEntries(
+                    Map.entry(CLOUD_RESOLUTION, 1.0),
                     Map.entry(CLOUD_COVER, 0.66), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 4096), Map.entry(DETAIL_DISTANCE, 2048),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 320), Map.entry(STORM_DARKNESS, true),
@@ -165,6 +173,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
             // Tectonic's mountains reach towards the 320 build limit, so clouds start above them.
             case VOXY_TECTONIC -> Map.ofEntries(
+                    Map.entry(CLOUD_RESOLUTION, 0.75),
                     Map.entry(CLOUD_COVER, 0.64), Map.entry(CLOUD_HEIGHT_OFFSET, 160), Map.entry(FAR_CLOUDS, true),
                     Map.entry(CLOUD_DISTANCE, 6144), Map.entry(DETAIL_DISTANCE, 2048),
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 360), Map.entry(STORM_DARKNESS, true),

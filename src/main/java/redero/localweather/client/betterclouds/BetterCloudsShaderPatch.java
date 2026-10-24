@@ -34,7 +34,7 @@ public final class BetterCloudsShaderPatch {
                         // Local Weather: decode size, darkness and flat flag from the cloud's y coordinate.
                         float lw_code = floor((lw_in_pos.y + 1024.0) / 2048.0);
                         vec3 in_pos = vec3(lw_in_pos.x, lw_in_pos.y - lw_code * 2048.0, lw_in_pos.z);
-                        float lw_size = 1.0 + mod(lw_code, 4.0);
+                        float lw_size = (1.0 + mod(lw_code, 4.0)) * (1.0 + mod(floor(lw_code / 64.0), 2.0));
                         float lw_dark = mod(floor(lw_code / 4.0), 8.0);
                         float lw_flat = mod(floor(lw_code / 32.0), 2.0);"""},
             // Better Clouds shrinks and flattens clouds towards the edge of its range; far storms must keep their height.
@@ -46,6 +46,15 @@ public final class BetterCloudsShaderPatch {
                         scale *= lw_size;
                         scale.y *= mix(1.0, 0.2, lw_flat);"""},
             // Storm clouds are dark from below but sunlit from above: looking down at one, most of the darkness goes.
+            // The clouds' own long-range depth, so clouds past the game's far plane still sort. Set per vertex rather
+            // than per fragment (gl_FragDepth), which would stop the GPU from skipping hidden fragments early.
+            {"    gl_Position = u_mvp_matrix * vec4(vertexPos, 1.0);\n#endif", """
+                        gl_Position = u_mvp_matrix * vec4(vertexPos, 1.0);
+                    #endif
+                        {
+                            %s
+                            gl_Position.z = (LW_FAR + LW_NEAR) / (LW_FAR - LW_NEAR) * gl_Position.w - 2.0 * LW_FAR * LW_NEAR / (LW_FAR - LW_NEAR);
+                        }""".formatted(DEPTH_RANGE)},
             {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
                     float lw_seen_dark = floor(lw_dark * mix(1.0, 0.25, smoothstep(0.0, -0.3, worldDirection.y)) + 0.5);
                         pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
@@ -54,29 +63,31 @@ public final class BetterCloudsShaderPatch {
     private static final String[][] COVERAGE_DEPTH = {
             {"uniform sampler2D u_depth_texture;", """
                     uniform sampler2D u_depth_texture;
-                    // Local Weather: the game's near and far plane, set by RendererMixin.
-                    uniform vec2 lw_depth_range;"""},
+                    // Local Weather: the game's near and far plane, and cloud resolution / screen resolution, set by RendererMixin.
+                    uniform vec2 lw_depth_range;
+                    uniform vec2 lw_resolution;"""},
+            // With a lower cloud resolution this pass runs on a smaller target; the depth textures are full size.
+            {"void main() {", """
+                    void main() {
+                        vec2 lw_res = lw_resolution.x > 0.0 ? lw_resolution : vec2(1.0);"""},
+            {"ivec2(gl_FragCoord.xy)", "ivec2(gl_FragCoord.xy / lw_res)"},
             // Terrain hides clouds by comparing view distances rather than depths: past the game's far plane the
             // cloud's depth is clamped and would lose against anything. Terrain depth near or past the far plane
             // comes from LOD mods (Voxy, Distant Horizons) with their own projection and can't be compared; it
             // doesn't hide clouds, which sit above that terrain in all but rare cases.
             {"if(min(gl_FragCoord.z, 1.0) > depth) discard;", """
-                    %s
+                    // gl_FragCoord.z holds the clouds' own long-range depth (set in the vertex shader); terrain
+                        // tests need the game's depth, rebuilt here from the view distance.
                         float lw_w = 1.0 / gl_FragCoord.w;
                         float lw_gn = lw_depth_range.x;
                         float lw_gf = lw_depth_range.y;
-                        if (depth < 1.0) {
-                            if (lw_gf <= lw_gn) {
-                                if (min(gl_FragCoord.z, 1.0) > depth) discard;
-                            } else {
-                                float lw_scene = 2.0 * lw_gf * lw_gn / ((lw_gf + lw_gn) - (2.0 * depth - 1.0) * (lw_gf - lw_gn));
-                                bool lw_trusted = lw_scene < 0.9 * lw_gf;
-                                if (lw_trusted && lw_w > lw_scene) discard;
-                                if (!lw_trusted && lw_w < 0.9 * lw_gf && gl_FragCoord.z > depth) discard;
-                            }
-                        }
-                        // Depth from view distance with a long range, so far clouds still sort among themselves.
-                        gl_FragDepth = clamp(((LW_FAR + LW_NEAR) - 2.0 * LW_FAR * LW_NEAR / lw_w) / (LW_FAR - LW_NEAR) * 0.5 + 0.5, 0.0, 1.0);""".formatted(DEPTH_RANGE)},
+                        if (depth < 1.0 && lw_gf > lw_gn) {
+                            float lw_game_depth = clamp(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_w) / (lw_gf - lw_gn) * 0.5 + 0.5, 0.0, 1.0);
+                            float lw_scene = 2.0 * lw_gf * lw_gn / ((lw_gf + lw_gn) - (2.0 * depth - 1.0) * (lw_gf - lw_gn));
+                            bool lw_trusted = lw_scene < 0.9 * lw_gf;
+                            if (lw_trusted && lw_w > lw_scene) discard;
+                            if (!lw_trusted && lw_w < 0.9 * lw_gf && lw_game_depth > depth) discard;
+                        }"""},
     };
 
     private static final String[][] SHADING = {
@@ -101,6 +112,16 @@ public final class BetterCloudsShaderPatch {
             {"out_color.a *= u_opacity.y;", """
                     out_color.a = mix(out_color.a, sqrt(out_color.a), 0.6 * min(lw_dark, 1.0));
                         out_color.a *= u_opacity.y;"""},
+            // Lower cloud resolution: this full-screen pass reads the smaller cloud textures at scaled coordinates.
+            {"uniform sampler2D u_light_texture;", """
+                    uniform sampler2D u_light_texture;
+                    // Local Weather: cloud resolution / screen resolution, set by RendererMixin.
+                    uniform vec2 lw_resolution;"""},
+            {"ivec2(gl_FragCoord.xy)", "lw_px"},
+            {"ivec2(gl_FragCoord)", "lw_px"},
+            {"void main() {", """
+                    void main() {
+                        ivec2 lw_px = ivec2(gl_FragCoord.xy * (lw_resolution.x > 0.0 ? lw_resolution : vec2(1.0)));"""},
     };
 
     private static volatile boolean active;
@@ -132,6 +153,7 @@ public final class BetterCloudsShaderPatch {
             LocalWeather.LOGGER.warn("Better Clouds shaders changed, storm cloud sizes and darkness are disabled");
             return source;
         }
+        source = source.replace("\r\n", "\n");
         for (String[] edit : edits) {
             source = source.replace(edit[0], edit[1]);
         }
@@ -142,7 +164,7 @@ public final class BetterCloudsShaderPatch {
         Optional<Resource> resource = resources.getResource(ResourceLocation.fromNamespaceAndPath("betterclouds", path));
         if (resource.isEmpty()) return false;
         try (InputStream in = resource.get().open()) {
-            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
             for (String[] edit : edits) {
                 if (!text.contains(edit[0])) return false;
             }

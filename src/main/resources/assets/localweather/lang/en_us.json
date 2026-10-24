@@ -69,5 +69,7 @@
   "localweather.configuration.followServerCloudHeight": "Follow server cloud height",
   "localweather.configuration.followServerCloudHeight.tooltip": "Use the world's cloud height when playing with Local Weather on the server, so clouds sit where the world's rain stops.",
   "localweather.configuration.dryAboveClouds": "Dry above the clouds",
-  "localweather.configuration.dryAboveClouds.tooltip": "Above the cloud base it doesn't rain: players stay dry, snow doesn't pile up, cauldrons don't fill, no lightning."
+  "localweather.configuration.dryAboveClouds.tooltip": "Above the cloud base it doesn't rain: players stay dry, snow doesn't pile up, cauldrons don't fill, no lightning.",
+  "localweather.configuration.cloudResolution": "Cloud resolution",
+  "localweather.configuration.cloudResolution.tooltip": "Resolution clouds are drawn at, as a share of the screen's. 0.75 is hard to tell apart from 1 and saves a lot of GPU time; 0.5 even more."
 }

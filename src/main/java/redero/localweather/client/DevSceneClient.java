@@ -3,7 +3,9 @@ package redero.localweather.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.player.LocalPlayer;
+import net.neoforged.fml.ModList;
 import redero.localweather.LocalWeather;
+import redero.localweather.client.betterclouds.BetterCloudsDev;
 import redero.localweather.server.DevScene;
 
 /**
@@ -44,6 +46,7 @@ final class DevSceneClient {
             framerateLimit = mc.options.framerateLimit().get();
             mc.options.enableVsync().set(false);
             mc.options.framerateLimit().set(260);
+            if (ModList.get().isLoaded("betterclouds")) BetterCloudsDev.enableProfiling(200);
         }
         // The window may lose focus while the scene runs; a pause menu would end up in the screenshots.
         if (mc.screen != null) mc.setScreen(null);

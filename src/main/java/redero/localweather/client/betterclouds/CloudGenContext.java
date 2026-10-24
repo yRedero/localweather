@@ -71,6 +71,8 @@ public final class CloudGenContext implements WeatherView {
     private int step;
     private boolean highOnly;
     private boolean towerGrid;
+    private boolean kept;
+    private float sampleCloudiness;
     private float highStrength;
     private float rain, thunder, cover, towerShape;
     private final float[] storm = new float[3];
@@ -79,7 +81,7 @@ public final class CloudGenContext implements WeatherView {
     private final List<CloudCode> pending = new ArrayList<>(24);
     private int extras;
     /** Dev scene only: per detail step (index 1, 2, 4), samples kept, clouds made, dark clouds. */
-    private final int[][] stats = new int[5][3];
+    private final int[][] stats = new int[9][3];
     private int towerPieces;
 
     private CloudGenContext(List<StormCell> cells, int aheadTicks, boolean hasWeather, double originX, double originZ,
@@ -138,35 +140,53 @@ public final class CloudGenContext implements WeatherView {
                 camera.getX(), camera.getZ(), otherFactors, options);
     }
 
-    /** Wraps Better Clouds' sampler call: picks the level of detail and the local cloudiness for one point. */
-    public float sample(int x, int z, float cloudiness, Sampler sampler) {
+    /**
+     * First half of wrapping Better Clouds' sampler call for one point: picks the level of detail and works out the
+     * weather there. Returns whether Better Clouds' own sampler should run; then call {@link #finish} with its
+     * value (or 0). Split in two so no object is created per point: a rebuild visits millions of them.
+     */
+    public boolean begin(int x, int z, float cloudiness) {
         pending.clear();
         pointsThisSample = 0;
         highOnly = false;
         highStrength = 0.0F;
+        kept = false;
         sampleX = x;
         sampleZ = z;
         step = lodStep(x, z);
-        if (step == 0) return 0.0F;
+        if (step == 0) return false;
 
         boolean onBaseGrid = onGrid(x, z, step);
         boolean highGrid = high && onGrid(x, z, Math.max(3, step));
-        if (!onBaseGrid && !highGrid) return 0.0F;
+        if (!onBaseGrid && !highGrid) return false;
 
         stormAt(x, z);
-        if (lod && rain > DECK_RAIN) step = Math.max(step, 2);
-        boolean kept = onGrid(x, z, step);
+        // The deck inside the rain area is always one detail step coarser than its surroundings.
+        if (lod && rain > DECK_RAIN) step = Math.min(step * 2, 8);
+        kept = onGrid(x, z, step);
         towerGrid = onGrid(x, z, Math.max(4, step * 2));
         if (highGrid) highStrength = highLayerAt(x, z);
-
-        float value = 0.0F;
         if (kept) {
             stats[step][0]++;
-            value = sampler.sample(cloudinessAt());
+            sampleCloudiness = cloudinessAt();
+        }
+        return kept;
+    }
+
+    /** The cloudiness to pass to Better Clouds' sampler after {@link #begin} returned true. */
+    public float sampleCloudiness() {
+        return sampleCloudiness;
+    }
+
+    /** Second half: takes Better Clouds' sampled value (0 if it didn't sample) and returns the value to use. */
+    public float finish(float value) {
+        if (kept) {
             // Better Clouds' noise leaves holes even at full cover; where it rains there's always a cloud above.
             // Varied strength: Better Clouds sets height from it, and equal heights would z-fight from above.
-            if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain) * (0.8F + 0.4F * hash(x, z, 31)));
+            if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain) * (0.8F + 0.4F * hash(sampleX, sampleZ, 31)));
             if (value > 0.0F) stats[step][1]++;
+        } else {
+            value = 0.0F;
         }
         if (value <= 0.0F && highStrength > 0.0F) {
             // A high cloud with nothing below it: let Better Clouds emit one point, which point() moves up.
@@ -233,9 +253,10 @@ public final class CloudGenContext implements WeatherView {
 
     public String stats() {
         return String.format("%d ms, cells %d, distance %d, detail %d | step1 kept %d clouds %d dark %d | step2 kept %d clouds %d dark %d"
-                        + " | step4 kept %d clouds %d dark %d | tower pieces %d, extras added %d of %d",
+                        + " | step4 kept %d clouds %d dark %d | step8 kept %d clouds %d | tower pieces %d, extras added %d of %d",
                 (System.nanoTime() - startNanos) / 1_000_000, cells.size(), blockDistance, detailDistance, stats[1][0], stats[1][1], stats[1][2],
-                stats[2][0], stats[2][1], stats[2][2], stats[4][0], stats[4][1], stats[4][2], towerPieces, extras, extraBudget);
+                stats[2][0], stats[2][1], stats[2][2], stats[4][0], stats[4][1], stats[4][2],
+                stats[8][0], stats[8][1], towerPieces, extras, extraBudget);
     }
 
     /** The y Better Clouds uploads for a point. */
@@ -294,6 +315,7 @@ public final class CloudGenContext implements WeatherView {
         double d = Math.sqrt(Mth.square(x - cameraX) + Mth.square(z - cameraZ));
         if (d > blockDistance) return 0;
         d += LOD_BLEND * (hash(gridIndex(x), gridIndex(z), 7) - 0.5);
+        if (d > 3.0 * detailDistance) return 8;
         if (d > 2.0 * detailDistance) return 4;
         if (d > detailDistance) return 2;
         return 1;
@@ -357,11 +379,5 @@ public final class CloudGenContext implements WeatherView {
     @Override
     public int aheadTicks() {
         return aheadTicks;
-    }
-
-    /** Better Clouds' sampler with everything but the cloudiness already bound. */
-    @FunctionalInterface
-    public interface Sampler {
-        float sample(float cloudiness);
     }
 }

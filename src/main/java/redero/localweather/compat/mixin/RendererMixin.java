@@ -6,9 +6,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.qendolin.betterclouds.clouds.Renderer;
+import com.qendolin.betterclouds.clouds.Resources;
+import com.qendolin.betterclouds.clouds.fog.FogProvider;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.DimensionSpecialEffects;
@@ -16,6 +21,7 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.AABB;
 import redero.localweather.client.ClientWeather;
+import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 
@@ -25,6 +31,32 @@ public abstract class RendererMixin {
     @Inject(method = {"drawCloudsWithFrustumCulling", "drawCloudsWithoutFrustumCulling"}, at = @At("HEAD"))
     private void localweather$coverageDepthRange(CallbackInfo ci) {
         setDepthRange("lw_depth_range");
+        setResolution();
+    }
+
+    /**
+     * With a lower cloud resolution Better Clouds leaves the viewport at its smaller cloud target for the
+     * full-screen shading pass, which then only covers part of the screen. Draw it over the whole screen; the
+     * patched shader reads the cloud textures at scaled coordinates.
+     */
+    @Inject(method = "drawShading", at = @At("HEAD"))
+    private void localweather$fullScreenShading(float tickDelta, FogProvider.Fog fog, CallbackInfo ci) {
+        if (!BetterCloudsShaderPatch.active()) return;
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        Resources res = ((Renderer) (Object) this).resources();
+        if (res.fboWidth() != main.width || res.fboHeight() != main.height) {
+            GlStateManager._viewport(0, 0, main.width, main.height);
+        }
+    }
+
+    private void setResolution() {
+        if (!BetterCloudsShaderPatch.active()) return;
+        int program = GL20.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int location = GL20.glGetUniformLocation(program, "lw_resolution");
+        if (location < 0) return;
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        Resources res = ((Renderer) (Object) this).resources();
+        GL20.glUniform2f(location, res.fboWidth() / (float) main.width, res.fboHeight() / (float) main.height);
     }
 
     private static void setDepthRange(String uniform) {
@@ -34,6 +66,13 @@ public abstract class RendererMixin {
         if (location >= 0) {
             GL20.glUniform2f(location, GameRenderer.PROJECTION_Z_NEAR, Minecraft.getInstance().gameRenderer.getDepthFar());
         }
+    }
+
+    /** Draws clouds at a lower resolution when configured: their cost is mostly per pixel. */
+    @ModifyReturnValue(method = {"scaledFramebufferWidth", "scaledFramebufferHeight"}, at = @At("RETURN"))
+    private int localweather$cloudResolution(int size) {
+        if (!LocalWeatherClientConfig.SPEC.isLoaded()) return size;
+        return Math.max(1, (int) (size * LocalWeatherClientConfig.CLOUD_RESOLUTION.get()));
     }
 
     /** Lifts every cloud by the configured offset, e.g. above Tectonic's mountains. */
@@ -83,5 +122,6 @@ public abstract class RendererMixin {
     @Inject(method = "drawShading", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL32;glDrawArrays(III)V"))
     private void localweather$depthRange(CallbackInfo ci) {
         setDepthRange("u_depth_range");
+        setResolution();
     }
 }
