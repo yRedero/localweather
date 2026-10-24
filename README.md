@@ -14,10 +14,10 @@ NeoForge 1.21.1 mod that replaces global weather with **storm cells**: discs of 
   - *Weather systems*: a storm's clouds start building about 2.6 radii out, so the sky fills in gradually long before the rain; the sky and fog grey over with it (`ClientLevelMixin`, `FogRendererMixin`). Better Clouds' global darkening by the rain at the camera is toned down, so from inside a storm only the storm clouds are dark.
   - *Cloud drift*: with local weather, Better Clouds' clouds drift with the storm wind instead of their own random path, so storms move smoothly with the clouds instead of being rebuilt as they travel.
   - *High layer*: a second, flat cloud layer above the normal one that thickens around storms.
-  - How: the generator task's sampler and point creation are wrapped (`ChunkedGeneratorTaskMixin`, logic in `CloudGenContext`). Each cloud carries a size, darkness and flat flag packed into its y coordinate (`CloudCode`), which a text patch to Better Clouds' coverage and shading shaders decodes (`BetterCloudsShaderPatch`; if Better Clouds changes those shaders, the patch backs off and only coverage stays). Chunk frustum culling is skipped for far clouds because vanilla's frustum ends at the far plane.
+  - How: the generator task's sampler and point creation are wrapped (`ChunkedGeneratorTaskMixin`, logic in `CloudGenContext`). Each cloud carries a size, darkness and flat flag packed into its y coordinate (`CloudCode`), which a text patch to Better Clouds' coverage and shading shaders decodes (`BetterCloudsShaderPatch`; if Better Clouds changes those shaders, the patch backs off and only coverage stays). Chunk culling uses vanilla's frustum with far boxes scaled towards the camera, since its far plane would otherwise hide far clouds. Better Clouds' chunk cache stays on and is cleared when storms change or the camera moves 512 blocks.
 - Only overworld-like dimensions (sky light, no ceiling) are affected. The network channel is optional, so the mod falls back to vanilla weather when only one side has it.
 
-Cell types: `shower` (small, short), `rain` (large fronts), `thunderstorm` (lightning in the core, warm biomes only).
+Cell types: `shower` (0.9-1.6 km radius), `rain` (2.6-4.8 km fronts), `thunderstorm` (1.4-2.4 km, lightning in the core, warm biomes only). At most two storms gather around a player, and each forms upwind at a distance scaled to its size.
 
 ## Commands (op level 2)
 

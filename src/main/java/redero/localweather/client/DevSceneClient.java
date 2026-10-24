@@ -24,6 +24,8 @@ final class DevSceneClient {
     private static final int TICKS_PER_VIEW = 100;
 
     private static int ticks = -1;
+    private static boolean vsync;
+    private static int framerateLimit;
 
     private DevSceneClient() {
     }
@@ -37,6 +39,11 @@ final class DevSceneClient {
             ticks = 0;
             mc.options.hideGui = true;
             mc.options.pauseOnLostFocus = false;
+            // Uncapped frame rate so the logged fps show rendering cost; restored before quitting.
+            vsync = mc.options.enableVsync().get();
+            framerateLimit = mc.options.framerateLimit().get();
+            mc.options.enableVsync().set(false);
+            mc.options.framerateLimit().set(260);
         }
         // The window may lose focus while the scene runs; a pause menu would end up in the screenshots.
         if (mc.screen != null) mc.setScreen(null);
@@ -53,6 +60,8 @@ final class DevSceneClient {
                 LocalWeather.LOGGER.info("Dev scene: camera rain {} thunder {} gloom {}", ClientWeather.INSTANCE.cameraRain(),
                         ClientWeather.INSTANCE.cameraThunder(), ClientWeather.INSTANCE.gloom(1.0F));
                 LocalWeather.LOGGER.info("Dev scene: screenshots done, quitting");
+                mc.options.enableVsync().set(vsync);
+                mc.options.framerateLimit().set(framerateLimit);
                 mc.stop();
             }
             return;

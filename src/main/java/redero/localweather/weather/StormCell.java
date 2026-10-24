@@ -74,37 +74,66 @@ public final class StormCell {
         return z + vz * aheadTicks;
     }
 
-    /** Distance from the centre in radii, measured through the outline noise. */
-    private double relativeDistance(double px, double pz, int aheadTicks) {
+    /** The outline noise at a point, shared by every cell (each scales it by its own radius). */
+    public static double shapeNoiseX(double px, double pz) {
+        return SHAPE_NOISE.getValue(px / 900.0, pz / 900.0);
+    }
+
+    public static double shapeNoiseZ(double px, double pz) {
+        return SHAPE_NOISE.getValue(px / 900.0 + 37.0, pz / 900.0 + 37.0);
+    }
+
+    /** True if the point can be inside this storm's weather system at all; cheap, no noise. */
+    public boolean reaches(double px, double pz, int aheadTicks) {
         double dx = px - centerX(aheadTicks);
         double dz = pz - centerZ(aheadTicks);
         double reach = radius * CLOUD_REACH * (1.0 + WARP);
-        if (dx * dx + dz * dz > reach * reach) return Double.MAX_VALUE;
+        return dx * dx + dz * dz <= reach * reach;
+    }
+
+    /** Distance from the centre in radii, measured through the outline noise. */
+    private double relativeDistance(double px, double pz, int aheadTicks) {
+        if (!reaches(px, pz, aheadTicks)) return Double.MAX_VALUE;
+        return relativeDistance(px, pz, aheadTicks, shapeNoiseX(px, pz), shapeNoiseZ(px, pz));
+    }
+
+    /** As above, with the outline noise already looked up (see {@link WeatherView#sample}). */
+    public double relativeDistance(double px, double pz, int aheadTicks, double noiseX, double noiseZ) {
         double warp = WARP * radius;
-        dx += warp * SHAPE_NOISE.getValue(px / 900.0, pz / 900.0);
-        dz += warp * SHAPE_NOISE.getValue(px / 900.0 + 37.0, pz / 900.0 + 37.0);
+        double dx = px - centerX(aheadTicks) + warp * noiseX;
+        double dz = pz - centerZ(aheadTicks) + warp * noiseZ;
         return Math.sqrt(dx * dx + dz * dz) / radius;
     }
 
     /** Rain strength at a point: heavy core out to 35% of the radius, a long drizzly edge after that. */
     public float rainAt(double px, double pz, int aheadTicks) {
-        double d = relativeDistance(px, pz, aheadTicks);
-        if (d >= 1.0) return 0.0F;
-        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.35F, 1.0F, (float) d));
+        return rainAtDistance(relativeDistance(px, pz, aheadTicks), aheadTicks);
     }
 
     /** Cloud cover: builds up slowly from far outside the storm to full overcast over the rain. */
     public float cloudAt(double px, double pz, int aheadTicks) {
-        double d = relativeDistance(px, pz, aheadTicks) / CLOUD_REACH;
-        if (d >= 1.0) return 0.0F;
-        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.2F, 1.0F, (float) d));
+        return cloudAtDistance(relativeDistance(px, pz, aheadTicks), aheadTicks);
     }
 
     /** Thunder is concentrated in a tighter core than the rain. */
     public float thunderAt(double px, double pz, int aheadTicks) {
         if (thunder <= 0.0F) return 0.0F;
-        double d = relativeDistance(px, pz, aheadTicks);
-        if (d >= 0.7) return 0.0F;
+        return thunderAtDistance(relativeDistance(px, pz, aheadTicks), aheadTicks);
+    }
+
+    public float rainAtDistance(double d, int aheadTicks) {
+        if (d >= 1.0) return 0.0F;
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.35F, 1.0F, (float) d));
+    }
+
+    public float cloudAtDistance(double d, int aheadTicks) {
+        d /= CLOUD_REACH;
+        if (d >= 1.0) return 0.0F;
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.2F, 1.0F, (float) d));
+    }
+
+    public float thunderAtDistance(double d, int aheadTicks) {
+        if (d >= 0.7 || thunder <= 0.0F) return 0.0F;
         return thunder * envelope(aheadTicks) * (1.0F - smoothstep(0.3F, 0.7F, (float) d));
     }
 

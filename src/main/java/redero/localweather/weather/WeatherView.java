@@ -29,6 +29,35 @@ public interface WeatherView {
         return cloud;
     }
 
+    /**
+     * Rain, thunder and cloud cover at once, for callers that need all three per point (cloud generation).
+     * Looks the outline noise up once instead of once per cell and value.
+     *
+     * @param out receives rain, thunder, cloud
+     */
+    default void sample(double x, double z, float[] out) {
+        float dry = 1.0F;
+        float thunder = 0.0F;
+        float cloud = 0.0F;
+        boolean looked = false;
+        double noiseX = 0.0, noiseZ = 0.0;
+        for (StormCell cell : cells()) {
+            if (!cell.reaches(x, z, aheadTicks())) continue;
+            if (!looked) {
+                noiseX = StormCell.shapeNoiseX(x, z);
+                noiseZ = StormCell.shapeNoiseZ(x, z);
+                looked = true;
+            }
+            double d = cell.relativeDistance(x, z, aheadTicks(), noiseX, noiseZ);
+            dry *= 1.0F - cell.rainAtDistance(d, aheadTicks());
+            thunder = Math.max(thunder, cell.thunderAtDistance(d, aheadTicks()));
+            cloud = Math.max(cloud, cell.cloudAtDistance(d, aheadTicks()));
+        }
+        out[0] = 1.0F - dry;
+        out[1] = thunder;
+        out[2] = cloud;
+    }
+
     default float thunderAt(double x, double z) {
         float thunder = 0.0F;
         for (StormCell cell : cells()) {

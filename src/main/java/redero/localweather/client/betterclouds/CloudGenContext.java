@@ -38,8 +38,6 @@ public final class CloudGenContext implements WeatherView {
     private static final float TOWER_HEIGHT = 240.0F;
     /** Anvil altitude above the cloud base, in blocks. */
     private static final float ANVIL_HEIGHT = 250.0F;
-    /** Storm reach used to skip storm maths for samples far from every cell (overcast plus outline noise). */
-    private static final double CELL_REACH = 3.3;
     /** Width of the dithered band between detail levels, in blocks. */
     private static final double LOD_BLEND = 300.0;
 
@@ -67,6 +65,8 @@ public final class CloudGenContext implements WeatherView {
     private boolean towerGrid;
     private float highStrength;
     private float rain, thunder, cover, towerShape;
+    private final float[] storm = new float[3];
+    private long startNanos;
     private int pointsThisSample;
     private final List<CloudCode> pending = new ArrayList<>(24);
     private int extras;
@@ -180,7 +180,7 @@ public final class CloudGenContext implements WeatherView {
         }
         if (towers && towerGrid && thunder > 0.25F) {
             int towerSize = Math.max(2, step);
-            double levelStep = sizeY * towerSize * 0.7;
+            double levelStep = sizeY * towerSize * 0.8;
             int levels = (int) (TOWER_HEIGHT * thunder * towerShape / levelStep);
             for (int i = 1; i <= levels; i++) {
                 queue(x, y + i * levelStep, z, towerSize, dark * (1.0F - 0.75F * i / levels), false, 0.3, 10 + i);
@@ -210,10 +210,15 @@ public final class CloudGenContext implements WeatherView {
         pending.clear();
     }
 
+    /** Dev scene only: marks the start of the task for the timing in {@link #stats()}. */
+    public void markStart() {
+        startNanos = System.nanoTime();
+    }
+
     public String stats() {
-        return String.format("cells %d, distance %d, detail %d | step1 kept %d clouds %d dark %d | step2 kept %d clouds %d dark %d"
+        return String.format("%d ms, cells %d, distance %d, detail %d | step1 kept %d clouds %d dark %d | step2 kept %d clouds %d dark %d"
                         + " | step4 kept %d clouds %d dark %d | tower pieces %d, extras added %d of %d",
-                cells.size(), blockDistance, detailDistance, stats[1][0], stats[1][1], stats[1][2],
+                (System.nanoTime() - startNanos) / 1_000_000, cells.size(), blockDistance, detailDistance, stats[1][0], stats[1][1], stats[1][2],
                 stats[2][0], stats[2][1], stats[2][2], stats[4][0], stats[4][1], stats[4][2], towerPieces, extras, extraBudget);
     }
 
@@ -232,27 +237,16 @@ public final class CloudGenContext implements WeatherView {
         cover = 0.0F;
         towerShape = 0.0F;
         if (!hasWeather) return;
-        double wx = x + originX;
-        double wz = z + originZ;
-        if (!nearAnyCell(wx, wz)) return;
-        rain = rainAt(wx, wz);
-        thunder = thunderAt(wx, wz);
-        cover = cloudAt(wx, wz);
+        sample(x + originX, z + originZ, storm);
+        rain = storm[0];
+        thunder = storm[1];
+        cover = storm[2];
         if (thunder > 0.0F) {
-            double cellsNoise = STORM_NOISE.getValue(wx / 380.0 + 91.0, wz / 380.0 + 91.0);
+            double cellsNoise = STORM_NOISE.getValue((x + originX) / 380.0 + 91.0, (z + originZ) / 380.0 + 91.0);
             towerShape = (float) (0.3 + 0.7 * Math.max(0.0, cellsNoise));
         }
     }
 
-    private boolean nearAnyCell(double wx, double wz) {
-        for (StormCell cell : cells) {
-            double reach = cell.radius * CELL_REACH;
-            if (Mth.square(cell.centerX(aheadTicks) - wx) + Mth.square(cell.centerZ(aheadTicks) - wz) < reach * reach) return true;
-        }
-        return false;
-    }
-
-    /** A flat high cloud, nudged off the sample grid so the layer doesn't show a checkerboard. */
     private CloudCode highCloud(double x, double z, int size) {
         float weather = Math.max(cover, thunder);
         int highSize = Math.max(size, 2);

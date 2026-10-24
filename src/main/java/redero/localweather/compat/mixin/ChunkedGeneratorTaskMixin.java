@@ -8,7 +8,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -39,18 +38,16 @@ public abstract class ChunkedGeneratorTaskMixin {
         localweather$context = CloudGenContext.capture(generator.originX(), generator.originZ(), options, cloudiness);
     }
 
+    @Inject(method = "run", at = @At("HEAD"))
+    private void localweather$devStart(CallbackInfo ci) {
+        if (DevScene.ENABLED && localweather$context != null) localweather$context.markStart();
+    }
+
     @Inject(method = "run", at = @At("RETURN"))
     private void localweather$devStats(CallbackInfo ci) {
         if (DevScene.ENABLED && localweather$context != null) {
             LocalWeather.LOGGER.info("Dev scene clouds: {}", localweather$context.stats());
         }
-    }
-
-    /** Cached chunks would keep the level of detail and storms they were generated with. */
-    @ModifyExpressionValue(method = "run", at = @At(value = "FIELD",
-            target = "Lcom/qendolin/betterclouds/config/Config;useSamplerCaching:Z"))
-    private boolean localweather$noCache(boolean useSamplerCaching) {
-        return useSamplerCaching && localweather$context == null;
     }
 
     @WrapOperation(method = "genSamplePoints", at = @At(value = "INVOKE",

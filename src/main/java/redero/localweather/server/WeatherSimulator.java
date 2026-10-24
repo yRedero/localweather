@@ -21,15 +21,18 @@ import redero.localweather.weather.StormCell;
 public final class WeatherSimulator {
     /** Cells move and age in steps of this many ticks. */
     static final int STEP = 20;
-    /** Cells further than this from every player are dropped. */
-    private static final double DESPAWN_RANGE = 14000.0;
-    /** Players are told about cells within this range. */
-    private static final double SYNC_RANGE = 10000.0;
-    /** A player gets no new cells while this many are already within {@link #CROWD_RANGE}. */
-    private static final int MAX_NEARBY = 5;
-    private static final double CROWD_RANGE = 7000.0;
+    /** Cells whose weather system is further than this from every player are dropped. */
+    private static final double DESPAWN_RANGE = 6000.0;
+    /** Players are told about cells whose weather system comes within this range. */
+    private static final double SYNC_RANGE = 6000.0;
+    /**
+     * A player gets no new cells while this many are already within {@link #CROWD_RANGE}. Storms are big, so
+     * two at a time already covers a lot of sky; more would leave little fair weather.
+     */
+    private static final int MAX_NEARBY = 2;
+    private static final double CROWD_RANGE = 9000.0;
     /** On average one spawn attempt per player every this many steps. */
-    private static final int SPAWN_ODDS = 120;
+    private static final int SPAWN_ODDS = 150;
 
     private WeatherSimulator() {
     }
@@ -72,23 +75,29 @@ public final class WeatherSimulator {
         data.setDirty();
     }
 
-    /** New cells form upwind of players, out of sight, so they drift in instead of popping up overhead. */
+    /**
+     * New cells form upwind of players with their rain still out of sight, scaled to their size, so they drift
+     * in instead of popping up overhead. Their outer clouds may already reach the player while they form.
+     */
     private static void trySpawnUpwind(ServerLevel level, WeatherSavedData data, ServerPlayer player, RandomSource random) {
+        float roll = random.nextFloat();
+        CellType type = roll < 0.35F ? CellType.SHOWER : roll < 0.85F ? CellType.RAIN : CellType.THUNDERSTORM;
+        float radius = type.rollRadius(random);
+
         float dirX = (float) Math.cos(data.windAngle);
         float dirZ = (float) Math.sin(data.windAngle);
-        double upwind = 2500.0 + random.nextDouble() * 3500.0;
-        double sideways = (random.nextDouble() - 0.5) * 8000.0;
+        double upwind = 600.0 + radius * (1.1 + 0.9 * random.nextDouble());
+        double sideways = (random.nextDouble() - 0.5) * (2000.0 + 3.0 * radius);
         double x = player.getX() - dirX * upwind - dirZ * sideways;
         double z = player.getZ() - dirZ * upwind + dirX * sideways;
 
         Biome biome = level.getBiome(BlockPos.containing(x, level.getSeaLevel(), z)).value();
         if (random.nextFloat() > spawnWeight(biome)) return;
-
-        float roll = random.nextFloat();
-        CellType type = roll < 0.35F ? CellType.SHOWER
-                : roll < 0.85F || biome.getBaseTemperature() < 0.5F ? CellType.RAIN
-                : CellType.THUNDERSTORM;
-        spawn(data, type, x, z, type.rollRadius(random), random);
+        if (type == CellType.THUNDERSTORM && biome.getBaseTemperature() < 0.5F) {
+            type = CellType.RAIN;
+            radius = type.rollRadius(random);
+        }
+        spawn(data, type, x, z, radius, random);
     }
 
     /** Wet biomes and oceans grow storms, dry ones rarely do. */
@@ -196,7 +205,7 @@ public final class WeatherSimulator {
         boolean moving = player.serverLevel().getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE);
         List<StormCell> near = new ArrayList<>();
         for (StormCell cell : data.cells) {
-            if (horizontalDistance(cell, player.getX(), player.getZ()) < SYNC_RANGE + cell.radius) {
+            if (horizontalDistance(cell, player.getX(), player.getZ()) < SYNC_RANGE + cell.radius * CellType.SYSTEM_REACH) {
                 StormCell copy = cell.copy();
                 if (!moving) {
                     copy.vx = 0.0F;
@@ -210,7 +219,7 @@ public final class WeatherSimulator {
 
     private static boolean farFromPlayers(ServerLevel level, StormCell cell) {
         for (ServerPlayer player : level.players()) {
-            if (horizontalDistance(cell, player.getX(), player.getZ()) < DESPAWN_RANGE) return false;
+            if (horizontalDistance(cell, player.getX(), player.getZ()) < DESPAWN_RANGE + cell.radius * CellType.SYSTEM_REACH) return false;
         }
         return true;
     }
@@ -218,7 +227,7 @@ public final class WeatherSimulator {
     private static int countNear(WeatherSavedData data, double x, double z) {
         int count = 0;
         for (StormCell cell : data.cells) {
-            if (horizontalDistance(cell, x, z) < CROWD_RANGE) count++;
+            if (horizontalDistance(cell, x, z) < CROWD_RANGE + cell.radius) count++;
         }
         return count;
     }

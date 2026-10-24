@@ -6,24 +6,47 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.qendolin.betterclouds.clouds.Renderer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.world.phys.AABB;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 
 @Mixin(value = Renderer.class, remap = false)
 public abstract class RendererMixin {
+    /** Our clouds can be up to 4x Better Clouds' size, so chunk boxes need this much extra margin. */
+    private static final double CLOUD_MARGIN = 32.0;
+
     /**
-     * Better Clouds culls cloud chunks with vanilla's frustum, which ends at the camera's far plane (4x the
-     * render distance). Far clouds live beyond it, so skip chunk culling; the GPU still drops what's off screen.
+     * Better Clouds culls cloud chunks with vanilla's frustum, which also cuts everything past the camera's far
+     * plane (4x the render distance), where far clouds live. Its side planes all meet at the camera, so pulling
+     * a box towards the camera doesn't change whether it's inside them: far boxes are scaled in before testing.
      */
-    @ModifyExpressionValue(method = "drawCoverage", at = @At(value = "FIELD",
-            target = "Lcom/qendolin/betterclouds/config/Config;useFrustumCulling:Z"))
-    private boolean localweather$keepFarChunks(boolean useFrustumCulling) {
-        return useFrustumCulling && !BetterCloudsCompat.farCloudsActive();
+    @WrapOperation(method = "drawCloudsWithFrustumCulling", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/culling/Frustum;isVisible(Lnet/minecraft/world/phys/AABB;)Z"))
+    private boolean localweather$cullWithoutFarPlane(Frustum frustum, AABB box, Operation<Boolean> original) {
+        if (!BetterCloudsCompat.farCloudsActive()) return original.call(frustum, box);
+        FrustumAccessor camera = (FrustumAccessor) frustum;
+        double cx = camera.localweather$camX();
+        double cy = camera.localweather$camY();
+        double cz = camera.localweather$camZ();
+        box = box.inflate(CLOUD_MARGIN);
+        double dx = Math.max(Math.abs(box.minX - cx), Math.abs(box.maxX - cx));
+        double dy = Math.max(Math.abs(box.minY - cy), Math.abs(box.maxY - cy));
+        double dz = Math.max(Math.abs(box.minZ - cz), Math.abs(box.maxZ - cz));
+        double farthest = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double limit = 0.5 * Minecraft.getInstance().gameRenderer.getDepthFar();
+        if (farthest > limit) {
+            double s = limit / farthest;
+            box = new AABB(cx + (box.minX - cx) * s, cy + (box.minY - cy) * s, cz + (box.minZ - cz) * s,
+                    cx + (box.maxX - cx) * s, cy + (box.maxY - cy) * s, cz + (box.maxZ - cz) * s);
+        }
+        return original.call(frustum, box);
     }
 
     /**

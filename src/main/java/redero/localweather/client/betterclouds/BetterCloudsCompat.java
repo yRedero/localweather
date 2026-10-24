@@ -13,6 +13,11 @@ import redero.localweather.weather.StormCell;
  * new cloud chunk or the global cloudiness changes, so moving storms need an extra nudge.
  */
 public final class BetterCloudsCompat {
+    /**
+     * Better Clouds caches generated chunks. Cached chunks keep the level of detail they were made with, so the
+     * cache is also cleared every time the camera crosses a square this big.
+     */
+    private static final double DETAIL_REFRESH = 512.0;
     /** Rebuild once a storm has shifted this many blocks relative to the drifting clouds. */
     private static final double MOVE_STEP = 32.0;
     /** ...or its strength has changed by this much. */
@@ -33,6 +38,10 @@ public final class BetterCloudsCompat {
     public static boolean fieldChanged(double cameraX, double cameraZ, double originX, double originZ, int blockDistance) {
         // Settings and the shader patch change geometry too.
         long signature = 31L * LocalWeatherClientConfig.geometryHash() + Boolean.hashCode(BetterCloudsShaderPatch.active());
+        if (farCloudsActive()) {
+            signature = 31 * signature + Mth.floor(cameraX / DETAIL_REFRESH);
+            signature = 31 * signature + Mth.floor(cameraZ / DETAIL_REFRESH);
+        }
         ClientWeather weather = ClientWeather.INSTANCE;
         if (weather.active()) {
             int ahead = weather.aheadTicks();
