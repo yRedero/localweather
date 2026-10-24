@@ -21,6 +21,21 @@ import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 
 @Mixin(value = Renderer.class, remap = false)
 public abstract class RendererMixin {
+    /** The patched coverage shader needs the game's near and far plane to tell what terrain hides a cloud. */
+    @Inject(method = {"drawCloudsWithFrustumCulling", "drawCloudsWithoutFrustumCulling"}, at = @At("HEAD"))
+    private void localweather$coverageDepthRange(CallbackInfo ci) {
+        setDepthRange("lw_depth_range");
+    }
+
+    private static void setDepthRange(String uniform) {
+        if (!BetterCloudsShaderPatch.active()) return;
+        int program = GL20.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int location = GL20.glGetUniformLocation(program, uniform);
+        if (location >= 0) {
+            GL20.glUniform2f(location, GameRenderer.PROJECTION_Z_NEAR, Minecraft.getInstance().gameRenderer.getDepthFar());
+        }
+    }
+
     /** Lifts every cloud by the configured offset, e.g. above Tectonic's mountains. */
     @WrapOperation(method = "prepare", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/DimensionSpecialEffects;getCloudHeight()F"))
@@ -67,11 +82,6 @@ public abstract class RendererMixin {
      */
     @Inject(method = "drawShading", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL32;glDrawArrays(III)V"))
     private void localweather$depthRange(CallbackInfo ci) {
-        if (!BetterCloudsShaderPatch.active()) return;
-        int program = GL20.glGetInteger(GL20.GL_CURRENT_PROGRAM);
-        int location = GL20.glGetUniformLocation(program, "u_depth_range");
-        if (location >= 0) {
-            GL20.glUniform2f(location, GameRenderer.PROJECTION_Z_NEAR, Minecraft.getInstance().gameRenderer.getDepthFar());
-        }
+        setDepthRange("u_depth_range");
     }
 }

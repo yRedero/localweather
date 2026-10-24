@@ -50,11 +50,30 @@ public final class BetterCloudsShaderPatch {
     };
 
     private static final String[][] COVERAGE_DEPTH = {
+            {"uniform sampler2D u_depth_texture;", """
+                    uniform sampler2D u_depth_texture;
+                    // Local Weather: the game's near and far plane, set by RendererMixin.
+                    uniform vec2 lw_depth_range;"""},
+            // Terrain hides clouds by comparing view distances rather than depths: past the game's far plane the
+            // cloud's depth is clamped and would lose against anything. Terrain depth near or past the far plane
+            // comes from LOD mods (Voxy, Distant Horizons) with their own projection and can't be compared; it
+            // doesn't hide clouds, which sit above that terrain in all but rare cases.
             {"if(min(gl_FragCoord.z, 1.0) > depth) discard;", """
-                    if(min(gl_FragCoord.z, 1.0) > depth) discard;
-                        // Local Weather: depth from view distance with a long range, so far clouds still sort.
-                        %s
+                    %s
                         float lw_w = 1.0 / gl_FragCoord.w;
+                        float lw_gn = lw_depth_range.x;
+                        float lw_gf = lw_depth_range.y;
+                        if (depth < 1.0) {
+                            if (lw_gf <= lw_gn) {
+                                if (min(gl_FragCoord.z, 1.0) > depth) discard;
+                            } else {
+                                float lw_scene = 2.0 * lw_gf * lw_gn / ((lw_gf + lw_gn) - (2.0 * depth - 1.0) * (lw_gf - lw_gn));
+                                bool lw_trusted = lw_scene < 0.9 * lw_gf;
+                                if (lw_trusted && lw_w > lw_scene) discard;
+                                if (!lw_trusted && lw_w < 0.9 * lw_gf && gl_FragCoord.z > depth) discard;
+                            }
+                        }
+                        // Depth from view distance with a long range, so far clouds still sort among themselves.
                         gl_FragDepth = clamp(((LW_FAR + LW_NEAR) - 2.0 * LW_FAR * LW_NEAR / lw_w) / (LW_FAR - LW_NEAR) * 0.5 + 0.5, 0.0, 1.0);""".formatted(DEPTH_RANGE)},
     };
 

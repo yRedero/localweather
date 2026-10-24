@@ -8,6 +8,7 @@
     "BufferAccessor",
     "ChunkedGeneratorMixin",
     "ChunkedGeneratorTaskMixin",
+    "CloudinessProviderMixin",
     "ConfigMixin",
     "EffectTintProviderMixin",
     "FrustumAccessor",

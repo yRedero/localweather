@@ -28,9 +28,12 @@ public enum CellType {
 
     /** How far a storm's weather system reaches, in radii: cloud build-up plus outline noise. */
     public static final double SYSTEM_REACH = 3.3;
+    /** Above 1 skews radii towards the small end: at 2.2 the median storm sits 22% up the range, and only 7% roll in its top 15%. */
+    private static final double SIZE_SKEW = 2.2;
 
+    /** Bigger storms are rarer: radii cluster near the minimum and thin out towards the maximum. */
     public float rollRadius(RandomSource random) {
-        return minRadius + random.nextFloat() * (maxRadius - minRadius);
+        return minRadius + (float) Math.pow(random.nextFloat(), SIZE_SKEW) * (maxRadius - minRadius);
     }
 
     public float rollIntensity(RandomSource random) {

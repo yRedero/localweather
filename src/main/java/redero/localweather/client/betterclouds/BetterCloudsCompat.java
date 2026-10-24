@@ -19,11 +19,11 @@ public final class BetterCloudsCompat {
      * Better Clouds caches generated chunks. Cached chunks keep the level of detail they were made with, so the
      * cache is also cleared every time the camera crosses a square this big.
      */
-    private static final double DETAIL_REFRESH = 512.0;
+    private static final double DETAIL_REFRESH = 1024.0;
     /** Rebuild once a storm has shifted this many blocks relative to the drifting clouds. */
     private static final double MOVE_STEP = 32.0;
     /** ...or its strength has changed by this much. */
-    private static final float STRENGTH_STEPS = 25.0F;
+    private static final float STRENGTH_STEPS = 10.0F;
 
     private static long lastSignature;
 

@@ -67,6 +67,16 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
             return;
         }
         if (!active) return;
+        if (mc.isPaused()) {
+            // Singleplayer pause (menus): the server stops too, so hold everything still instead of drifting
+            // storms and timing out for lack of syncs.
+            oRain = rain;
+            oThunder = thunder;
+            oGloom = gloom;
+            oWindOffsetX = windOffsetX;
+            oWindOffsetZ = windOffsetZ;
+            return;
+        }
         if (++ticksSinceSync > STALE_TICKS) {
             reset();
             return;

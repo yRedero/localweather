@@ -121,8 +121,9 @@ public final class CloudGenContext implements WeatherView {
         List<StormCell> inView = hasWeather
                 ? new ArrayList<>(BetterCloudsCompat.cellsInView(camera.getX(), camera.getZ(), options.blockDistance()))
                 : List.of();
-        // Same weather term as Better Clouds' CloudinessProvider, at the camera.
-        float cameraWeather = Math.max(0.6F * level.getRainLevel(1.0F), level.getThunderLevel(1.0F));
+        // Better Clouds' global cloudiness is 0.5 * season factors here: CloudinessProviderMixin keeps the
+        // weather out of it while local weather is active. Without local weather it also holds the camera's rain.
+        float cameraWeather = hasWeather ? 0.0F : Math.max(0.6F * level.getRainLevel(1.0F), level.getThunderLevel(1.0F));
         float otherFactors = globalCloudiness / (0.3F * cameraWeather + 0.5F);
         return new CloudGenContext(inView, weather.aheadTicks(), hasWeather, originX, originZ,
                 camera.getX(), camera.getZ(), otherFactors, options);
