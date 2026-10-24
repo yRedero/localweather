@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.dimension.DimensionType;
+import redero.localweather.server.LocalWeatherServerConfig;
 import redero.localweather.server.WeatherSavedData;
 
 /** Entry point the mixins use to ask about local weather without touching client classes on a server. */
@@ -13,6 +14,9 @@ public final class LocalWeatherApi {
     public static final float RAIN_THRESHOLD = 0.2F;
     /** Lightning can strike where local thunder is above this. */
     public static final float THUNDER_THRESHOLD = 0.5F;
+
+    /** The overworld's cloud height; the server can't ask the client-only DimensionSpecialEffects. */
+    public static final int VANILLA_CLOUD_HEIGHT = 192;
 
     private static ClientHooks client = ClientHooks.NONE;
 
@@ -31,6 +35,12 @@ public final class LocalWeatherApi {
     public static boolean managed(Level level) {
         DimensionType type = level.dimensionType();
         return type.hasSkyLight() && !type.hasCeiling();
+    }
+
+    /** True if the world's settings make it dry at this height: above the cloud base nothing falls. */
+    public static boolean aboveCloudBase(int y) {
+        return LocalWeatherServerConfig.dryAboveClouds()
+                && y >= VANILLA_CLOUD_HEIGHT + LocalWeatherServerConfig.cloudHeightOffset();
     }
 
     /** The weather for this level, or null when vanilla weather should apply. */

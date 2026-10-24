@@ -34,6 +34,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     private List<StormCell> cells = List.of();
     private float windX, windZ;
+    /** The world's cloud height offset, from the server. */
+    private int serverCloudHeightOffset;
     private int ticksSinceSync;
     private boolean active;
     /** Snap the camera levels on the first sync so joining mid-storm does not fade in. */
@@ -59,6 +61,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         cells = payload.cells();
         windX = payload.windX();
         windZ = payload.windZ();
+        serverCloudHeightOffset = payload.cloudHeightOffset();
         ticksSinceSync = 0;
         if (!active) {
             snapLevels = true;
@@ -152,7 +155,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         if (!(camera.level() instanceof net.minecraft.client.multiplayer.ClientLevel clientLevel)) return 1.0F;
         float cloudHeight = clientLevel.effects().getCloudHeight();
         if (Float.isNaN(cloudHeight)) return 1.0F;
-        double base = cloudHeight + LocalWeatherClientConfig.CLOUD_HEIGHT_OFFSET.get();
+        double base = cloudHeight + INSTANCE.cloudHeightOffset();
         double t = Mth.clamp((camera.getEyeY() - (base - 8.0)) / 32.0, 0.0, 1.0);
         return (float) (1.0 - t * t * (3.0 - 2.0 * t));
     }
@@ -195,6 +198,16 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     /** Thunder as the sky sees it, already multiplied by its rain like vanilla's, or NaN without local weather. */
     public float skyThunderLevel(float partialTick) {
         return active ? Mth.lerp(partialTick, oSkyThunder, skyThunder) * Mth.lerp(partialTick, oSkyRain, skyRain) : Float.NaN;
+    }
+
+    /**
+     * How far clouds are moved from the dimension's cloud height: the world's setting when connected to a server
+     * with local weather (so everyone sees the same clouds the weather follows), otherwise the client's own.
+     */
+    public int cloudHeightOffset() {
+        if (!LocalWeatherClientConfig.SPEC.isLoaded()) return active ? serverCloudHeightOffset : 0;
+        boolean follow = LocalWeatherClientConfig.FOLLOW_SERVER_CLOUD_HEIGHT.get();
+        return active && follow ? serverCloudHeightOffset : LocalWeatherClientConfig.CLOUD_HEIGHT_OFFSET.get();
     }
 
     public boolean belowClouds() {

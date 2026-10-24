@@ -54,7 +54,8 @@ public class LocalWeather {
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
         // Optional, so either side can join the other without the mod and fall back to vanilla weather.
-        event.registrar("1").optional().playToClient(WeatherSyncPayload.TYPE, WeatherSyncPayload.STREAM_CODEC,
+        // Version 2 added the cloud height offset to the sync payload.
+        event.registrar("2").optional().playToClient(WeatherSyncPayload.TYPE, WeatherSyncPayload.STREAM_CODEC,
                 (payload, context) -> redero.localweather.client.ClientWeather.INSTANCE.accept(payload));
     }
 

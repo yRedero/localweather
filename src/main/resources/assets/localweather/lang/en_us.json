@@ -31,7 +31,7 @@
   "localweather.configuration.clouds": "Clouds",
   "localweather.configuration.clouds.tooltip": "The cloud layer. Needs Better Clouds.",
   "localweather.configuration.cloudHeightOffset": "Cloud height offset",
-  "localweather.configuration.cloudHeightOffset.tooltip": "Moves all clouds up or down from the dimension's cloud height (192 in the overworld). +160 suits Tectonic.",
+  "localweather.configuration.cloudHeightOffset.tooltip": "Moves clouds up or down from the dimension's cloud height (192 in the overworld). +160 suits Tectonic. In the world config this is the cloud height everyone sees.",
   "localweather.configuration.storms": "Storms",
   "localweather.configuration.storms.tooltip": "How storms look (client) or behave (world).",
   "localweather.configuration.towerHeight": "Tower height",
@@ -65,5 +65,9 @@
   "localweather.configuration.rain": "Rain",
   "localweather.configuration.rain.tooltip": "Rain.",
   "localweather.configuration.noRainAboveClouds": "No rain above the clouds",
-  "localweather.configuration.noRainAboveClouds.tooltip": "No rain, rain sound or storm darkness while you are above the cloud base. Only affects what you see and hear."
+  "localweather.configuration.noRainAboveClouds.tooltip": "No rain, rain sound or storm darkness while you are above the cloud base. Only affects what you see and hear.",
+  "localweather.configuration.followServerCloudHeight": "Follow server cloud height",
+  "localweather.configuration.followServerCloudHeight.tooltip": "Use the world's cloud height when playing with Local Weather on the server, so clouds sit where the world's rain stops.",
+  "localweather.configuration.dryAboveClouds": "Dry above the clouds",
+  "localweather.configuration.dryAboveClouds.tooltip": "Above the cloud base it doesn't rain: players stay dry, snow doesn't pile up, cauldrons don't fill, no lightning."
 }

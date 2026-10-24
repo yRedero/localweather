@@ -57,8 +57,8 @@ final class DevSceneClient {
         int view = t / TICKS_PER_VIEW;
         if (view >= VIEWS.length) {
             if (view == VIEWS.length && t % TICKS_PER_VIEW == 20) {
-                LocalWeather.LOGGER.info("Dev scene: camera rain {} thunder {} gloom {}", ClientWeather.INSTANCE.cameraRain(),
-                        ClientWeather.INSTANCE.cameraThunder(), ClientWeather.INSTANCE.gloom(1.0F));
+                LocalWeather.LOGGER.info("Dev scene: camera rain {} thunder {} gloom {}, cloud height offset {}", ClientWeather.INSTANCE.cameraRain(),
+                        ClientWeather.INSTANCE.cameraThunder(), ClientWeather.INSTANCE.gloom(1.0F), ClientWeather.INSTANCE.cloudHeightOffset());
                 LocalWeather.LOGGER.info("Dev scene: screenshots done, quitting");
                 mc.options.enableVsync().set(vsync);
                 mc.options.framerateLimit().set(framerateLimit);

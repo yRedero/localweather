@@ -17,6 +17,7 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.EnumValue<Preset> PRESET;
 
     public static final ModConfigSpec.DoubleValue CLOUD_COVER;
+    public static final ModConfigSpec.BooleanValue FOLLOW_SERVER_CLOUD_HEIGHT;
     public static final ModConfigSpec.IntValue CLOUD_HEIGHT_OFFSET;
     public static final ModConfigSpec.BooleanValue FAR_CLOUDS;
     public static final ModConfigSpec.IntValue CLOUD_DISTANCE;
@@ -47,8 +48,11 @@ public final class LocalWeatherClientConfig {
         b.comment("The cloud layer. Everything here needs Better Clouds installed.").push("clouds");
         CLOUD_COVER = b.comment("How cloudy the sky is in fair weather. Better Clouds' own value is 0.5; storms add on top.")
                 .defineInRange("cloudCover", 0.62, 0.2, 0.95);
+        FOLLOW_SERVER_CLOUD_HEIGHT = b.comment("Use the world's cloud height (its server config) when playing on a server with Local Weather,",
+                        "so clouds sit where the world's rain stops. Turn off to use cloudHeightOffset below everywhere.")
+                .define("followServerCloudHeight", true);
         CLOUD_HEIGHT_OFFSET = b.comment("Moves all clouds up (or down) from the dimension's cloud height (192 in the overworld), in blocks.",
-                        "Raise it for terrain mods with tall mountains, e.g. +160 for Tectonic.")
+                        "Used without a Local Weather server, or with followServerCloudHeight off. +160 suits Tectonic.")
                 .defineInRange("cloudHeightOffset", 0, -128, 1024);
         FAR_CLOUDS = b.comment("Draw clouds further than Better Clouds allows, with less detail far away.")
                 .define("farClouds", true);

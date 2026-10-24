@@ -13,6 +13,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 import redero.localweather.server.WeatherSavedData;
 import redero.localweather.server.WeatherSimulator;
 import redero.localweather.weather.LocalWeatherApi;
@@ -51,6 +52,8 @@ public abstract class ServerLevelMixin {
     private boolean localweather$precipitatingHere(ServerLevel level, Operation<Boolean> original,
                                                    @Local(argsOnly = true) BlockPos pos) {
         if (!LocalWeatherApi.managed(level)) return original.call(level);
+        // Mountain tops above the cloud base get no snow and their cauldrons stay empty.
+        if (LocalWeatherApi.aboveCloudBase(level.getHeight(Heightmap.Types.MOTION_BLOCKING, pos.getX(), pos.getZ()))) return false;
         return WeatherSavedData.get(level).rainAt(pos.getX() + 0.5, pos.getZ() + 0.5) > LocalWeatherApi.RAIN_THRESHOLD;
     }
 

@@ -52,6 +52,24 @@ public final class LocalWeatherTests {
         helper.succeed();
     }
 
+    /** Above the cloud base (192 + the world's offset, 0 by default) it's dry; below it rains. */
+    @GameTest(template = "empty", skyAccess = true)
+    public static void dryAboveTheClouds(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        WeatherSavedData data = WeatherSavedData.get(level);
+        data.cells().clear();
+        BlockPos column = helper.absolutePos(new BlockPos(1, 1, 1));
+        StormCell cell = WeatherSimulator.spawn(data, CellType.RAIN, column.getX(), column.getZ(), 100.0F, level.random);
+        cell.intensity = 1.0F;
+        cell.age = cell.lifetime / 2;
+
+        helper.assertTrue(level.isRainingAt(column.atY(150)), "no rain below the cloud base");
+        helper.assertFalse(level.isRainingAt(column.atY(200)), "rain above the cloud base");
+
+        data.cells().clear();
+        helper.succeed();
+    }
+
     /** Clouds and rain come from the same storm shape: wherever it rains, the sky above is heavily overcast. */
     @GameTest(template = "empty")
     public static void cloudsCoverTheRain(GameTestHelper helper) {
