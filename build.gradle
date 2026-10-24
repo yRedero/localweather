@@ -70,6 +70,15 @@ neoForge {
                 programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
             }
             // -PdevScene places storms around you and saves screenshots to run/screenshots, see DevScene.
+            if (project.hasProperty('strafeSpeed')) {
+                systemProperty 'localweather.strafeSpeed', project.property('strafeSpeed').toString()
+            }
+            if (project.hasProperty('debugOcclusion')) {
+                systemProperty 'localweather.debugOcclusion', 'true'
+            }
+            if (project.hasProperty('noShaderPatch')) {
+                systemProperty 'localweather.noShaderPatch', 'true'
+            }
             if (project.hasProperty('devScene')) {
                 var mode = project.property('devScene').toString()
                 systemProperty 'localweather.devscene', mode.isEmpty() ? 'true' : mode

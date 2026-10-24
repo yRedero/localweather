@@ -53,6 +53,10 @@ final class DevSceneClient {
         ticks++;
 
         int t = ticks - WARMUP_TICKS;
+        if (DevScene.STRAFE) {
+            strafe(mc, player, t);
+            return;
+        }
         if (t < 0) {
             look(player, VIEWS[0]);
             return;
@@ -81,6 +85,38 @@ final class DevSceneClient {
             Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(),
                     message -> LocalWeather.LOGGER.info("Dev scene: saved {} at {} fps", file, mc.getFps()));
         }
+    }
+
+    /** Frames saved while strafing: 6 blocks left, 12 right, 6 back, at walking speed. */
+    private static final int STRAFE_FRAMES = 120;
+    private static final double STRAFE_SPEED = Double.parseDouble(System.getProperty("localweather.strafeSpeed", "0.2"));
+    private static double baseX, baseY, baseZ;
+
+    private static void strafe(Minecraft mc, LocalPlayer player, int t) {
+        if (t < 0) {
+            baseX = player.getX();
+            baseY = player.getY();
+            baseZ = player.getZ();
+            return;
+        }
+        if (t >= STRAFE_FRAMES) {
+            if (t == STRAFE_FRAMES + 20) {
+                LocalWeather.LOGGER.info("Dev scene: strafe frames done, quitting");
+                mc.options.enableVsync().set(vsync);
+                mc.options.framerateLimit().set(framerateLimit);
+                mc.stop();
+            }
+            return;
+        }
+        // Sideways from the view direction: 0 -> -6 -> +6 -> 0 blocks.
+        int phase = t < 30 ? -t : t < 90 ? t - 60 : 120 - t;
+        double offset = phase * STRAFE_SPEED;
+        double yaw = Math.toRadians(player.getYRot());
+        double sideX = Math.cos(yaw);
+        double sideZ = Math.sin(yaw);
+        player.setPos(baseX + sideX * offset, baseY, baseZ + sideZ * offset);
+        String file = String.format("strafe_%03d.png", t);
+        Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), message -> { });
     }
 
     private static void look(LocalPlayer player, Object[] view) {

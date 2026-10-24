@@ -32,6 +32,8 @@ import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 import redero.localweather.client.betterclouds.VoxyDepth;
+import redero.localweather.client.betterclouds.LodDepthDump;
+import redero.localweather.server.DevScene;
 
 @Mixin(value = Renderer.class, remap = false)
 public abstract class RendererMixin {
@@ -69,6 +71,7 @@ public abstract class RendererMixin {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         GL20.glUniform2f(GL20.glGetUniformLocation(program, "lw_screen_inv"), 1.0F / main.width, 1.0F / main.height);
         GL20.glUniform2f(info, 1.0F, voxy.zeroToOne() ? 1.0F : 0.0F);
+        if (DevScene.STRAFE) LodDepthDump.maybeDump(voxy);
     }
 
     /**

@@ -21,6 +21,8 @@ import redero.localweather.LocalWeather;
  * All three shaders are patched or none: a partial patch would put clouds in the wrong place.
  */
 public final class BetterCloudsShaderPatch {
+    /** Dev only (-Dlocalweather.debugOcclusion=true): show how each cloud pixel was tested against terrain. */
+    private static final String DEBUG_OCCLUSION = Boolean.toString(Boolean.getBoolean("localweather.debugOcclusion"));
     private static final String COVERAGE_VSH = "shaders/core/betterclouds_coverage.vsh";
     private static final String COVERAGE_FSH = "shaders/core/betterclouds_coverage.fsh";
     private static final String SHADING_FSH = "shaders/core/betterclouds_shading.fsh";
@@ -43,10 +45,16 @@ public final class BetterCloudsShaderPatch {
                         vec3 cloudPos = in_pos; // in world space but anchored to the chunk grid"""},
             {"vec3 scale = SIZE * dynScale * scaleFalloff;", """
                     vec3 scale = SIZE * dynScale * scaleFalloff;
+                        vec3 lw_base = scale;
                         scale *= lw_size;
                         scale.y *= mix(1.0, 0.2, lw_flat);"""},
             // Storm clouds are dark from below but sunlit from above: a cloud below the camera loses most of its
             // darkness. Judged by height rather than view angle, so far clouds near the horizon count too.
+            // Enlarged (far, storm) clouds grow upwards: their bottom stays where a normal cloud's would be, so they
+            // don't sag into tall terrain below the cloud base, where cube faces cutting through far mountains shimmer.
+            {"vec3 vertexPos = scale * in_vert + cloudPos;", """
+                    vec3 vertexPos = scale * in_vert + cloudPos;
+                        vertexPos.y += (scale.y - lw_base.y) * abs(in_vert.y);"""},
             // The clouds' own long-range depth, so clouds past the game's far plane still sort. Set per vertex rather
             // than per fragment (gl_FragDepth), which would stop the GPU from skipping hidden fragments early.
             {"    gl_Position = u_mvp_matrix * vec4(vertexPos, 1.0);\n#endif", """
@@ -72,7 +80,8 @@ public final class BetterCloudsShaderPatch {
                     uniform sampler2D lw_lod_depth;
                     uniform mat4 lw_lod_inv_proj;
                     uniform vec2 lw_lod_info;
-                    uniform vec2 lw_screen_inv;"""},
+                    uniform vec2 lw_screen_inv;
+                    const bool LW_DEBUG_OCCLUSION = %s;""".formatted(DEBUG_OCCLUSION)},
             // With a lower cloud resolution this pass runs on a smaller target; the depth textures are full size.
             {"void main() {", """
                     void main() {
@@ -88,21 +97,45 @@ public final class BetterCloudsShaderPatch {
                         float lw_w = 1.0 / gl_FragCoord.w;
                         float lw_gn = lw_depth_range.x;
                         float lw_gf = lw_depth_range.y;
+                        // lw_state, for -Dlocalweather.debugOcclusion: 0 no terrain behind, 1 near terrain, 2 LOD terrain
+                        // without usable LOD depth, 3 LOD terrain further than the cloud, 4 hidden, 5 no LOD depth bound.
+                        float lw_state = 0.0;
+                        bool lw_hide = false;
                         if (depth < 1.0 && lw_gf > lw_gn) {
                             float lw_game_depth = clamp(((lw_gf + lw_gn) - 2.0 * lw_gf * lw_gn / lw_w) / (lw_gf - lw_gn) * 0.5 + 0.5, 0.0, 1.0);
                             float lw_scene = 2.0 * lw_gf * lw_gn / ((lw_gf + lw_gn) - (2.0 * depth - 1.0) * (lw_gf - lw_gn));
                             bool lw_trusted = lw_scene < 0.9 * lw_gf;
-                            if (lw_trusted && lw_w > lw_scene) discard;
-                            if (!lw_trusted && lw_w < 0.9 * lw_gf && lw_game_depth > depth) discard;
-                            if (!lw_trusted && lw_lod_info.x > 0.5) {
+                            if (lw_trusted) {
+                                lw_state = 1.0;
+                                lw_hide = lw_w > lw_scene;
+                            } else if (lw_w < 0.9 * lw_gf && lw_game_depth > depth) {
+                                lw_state = 4.0;
+                                lw_hide = true;
+                            } else if (lw_lod_info.x < 0.5) {
+                                lw_state = 5.0;
+                            } else {
                                 vec2 lw_uv = gl_FragCoord.xy / lw_res * lw_screen_inv;
                                 float lw_lod = texture(lw_lod_depth, lw_uv).r;
+                                lw_state = 2.0;
                                 if (lw_lod > 0.0 && lw_lod < 1.0) {
                                     vec4 lw_view = lw_lod_inv_proj * vec4(lw_uv * 2.0 - 1.0, lw_lod_info.y > 0.5 ? lw_lod : lw_lod * 2.0 - 1.0, 1.0);
                                     float lw_terrain = -lw_view.z / lw_view.w;
-                                    if (lw_terrain > 0.0 && lw_terrain < lw_w) discard;
+                                    lw_state = 3.0;
+                                    if (lw_terrain > 0.0 && lw_terrain < lw_w) {
+                                        lw_state = 4.0;
+                                        lw_hide = true;
+                                    }
                                 }
                             }
+                        }
+                        if (lw_hide && !LW_DEBUG_OCCLUSION) discard;"""},
+            // Debug: paint the state as darkness steps instead of the cloud's own (0 bright ... 7 dark).
+            {"out_color.rgb = pass_color.rgb;", """
+                    out_color.rgb = pass_color.rgb;
+                        if (LW_DEBUG_OCCLUSION) {
+                            float lw_level = lw_state == 0.0 ? 0.0 : lw_state == 1.0 ? 2.0 : lw_state == 2.0 ? 4.0
+                                : lw_state == 3.0 ? 6.0 : lw_state == 4.0 ? 7.0 : 1.0;
+                            out_color.b = (lw_level + 0.05 + 0.85 * 0.5) / 8.0;
                         }"""},
     };
 
@@ -166,9 +199,19 @@ public final class BetterCloudsShaderPatch {
             {"void main() {", """
                     void main() {
                         ivec2 lw_px = ivec2(gl_FragCoord.xy * (lw_resolution.x > 0.0 ? lw_resolution : vec2(1.0)));"""},
+            // Debug: solid colours per occlusion state (see the coverage patch).
+            {"out_color.a *= cloudData.r;", """
+                    out_color.a *= cloudData.r;
+                        if (%s) {
+                            float lw_dbg = floor(lw_dark * 7.0 + 0.5);
+                            out_color = vec4(lw_dbg < 0.5 ? vec3(0, 0, 1) : lw_dbg < 1.5 ? vec3(1, 0, 1) : lw_dbg < 2.5 ? vec3(0, 1, 0)
+                                : lw_dbg < 4.5 ? vec3(1, 1, 0) : lw_dbg < 6.5 ? vec3(0, 1, 1) : vec3(1, 0, 0), 1.0);
+                        }""".formatted(DEBUG_OCCLUSION)},
     };
 
     private static volatile boolean active;
+    /** Dev only (-Dlocalweather.noShaderPatch=true): leave Better Clouds' shaders alone, to compare against. */
+    private static final boolean DISABLED = Boolean.getBoolean("localweather.noShaderPatch");
 
     private BetterCloudsShaderPatch() {
     }
@@ -188,6 +231,10 @@ public final class BetterCloudsShaderPatch {
         } else if (id.getPath().equals(SHADING_FSH)) {
             edits = SHADING;
         } else {
+            return source;
+        }
+        if (DISABLED) {
+            active = false;
             return source;
         }
         boolean ok = anchorsPresent(resources, COVERAGE_VSH, COVERAGE) && anchorsPresent(resources, COVERAGE_FSH, COVERAGE_DEPTH)

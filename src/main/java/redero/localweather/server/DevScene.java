@@ -23,6 +23,11 @@ public final class DevScene {
     public static final boolean ABOVE = "above".equals(MODE);
     /** -PdevScene=ground: the normal storms, standing on the ground wherever the player was. */
     public static final boolean GROUND = "ground".equals(MODE);
+    /**
+     * -PdevScene=strafe: keeps the world's own weather, the player's position and view, and walks left and right
+     * while saving a frame every tick (run/screenshots/strafe_NNN.png), to find flicker. See tools/flicker.py.
+     */
+    public static final boolean STRAFE = "strafe".equals(MODE);
 
     private DevScene() {
     }
@@ -30,10 +35,18 @@ public final class DevScene {
     public static void setUp(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level) || level.dimension() != Level.OVERWORLD) return;
         WeatherSavedData data = WeatherSavedData.get(level);
-        data.cells.clear();
+        if (!STRAFE) data.cells.clear();
         double x = player.getX();
         double z = player.getZ();
         var server = level.getServer();
+        if (STRAFE) {
+            // Same picture every run: freeze the world's weather and time, keep everything else as saved.
+            level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE).set(false, server);
+            level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
+            WeatherSimulator.syncAll(level);
+            LocalWeather.LOGGER.info("Dev scene: strafing with the world's own weather");
+            return;
+        }
         if (INSIDE) {
             // Rain core a few hundred blocks east: the player stands in the storm's drizzle and gloom.
             place(level, data, CellType.THUNDERSTORM, x + 700, z, 1100);

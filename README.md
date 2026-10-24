@@ -51,6 +51,13 @@ For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = T
 ./gradlew runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
 ./gradlew runClient -PquickPlay="New World" -PdevScene=above    # same storms, seen from high above the clouds
 ./gradlew runClient -PquickPlay="New World" -PdevScene=ground   # same storms, standing on the ground
+./gradlew runClient -PquickPlay="New World" -PdevScene=strafe   # world's own weather; walks left/right, a frame per tick
+python tools/flicker.py <frames> <out> [<reference frames>] [--region x0 y0 x1 y1]   # finds flicker in those frames
+```
+
+Debugging switches for `runClient`: `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
+
+```
 ./gradlew runGameTestServer   # gametest/LocalWeatherTests
 ```
 

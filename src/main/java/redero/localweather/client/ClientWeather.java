@@ -11,6 +11,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import redero.localweather.LocalWeather;
 import redero.localweather.net.WeatherSyncPayload;
+import redero.localweather.server.DevScene;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
 import redero.localweather.weather.WeatherView;
@@ -259,6 +260,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     @Override
     public float rainLevel(Level level, float partialTick) {
         if (!active || level != this.level) return Float.NaN;
+        // Dev only: rain streaks would drown everything else when looking for flicker.
+        if (DevScene.STRAFE) return 0.0F;
         return Mth.lerp(partialTick, oRain, rain);
     }
 
