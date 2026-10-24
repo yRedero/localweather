@@ -161,8 +161,9 @@ public final class CloudGenContext implements WeatherView {
         if (!onBaseGrid && !highGrid) return false;
 
         stormAt(x, z);
-        // The deck inside the rain area is always one detail step coarser than its surroundings.
-        if (lod && rain > DECK_RAIN) step = Math.min(step * 2, 8);
+        // The deck inside the rain area is one detail step coarser than its surroundings, but never beyond 4x:
+        // lone 8x cubes at a deck's edge read as big tinted boxes over the terrain.
+        if (lod && rain > DECK_RAIN) step = Math.max(step, Math.min(step * 2, 4));
         kept = onGrid(x, z, step);
         towerGrid = onGrid(x, z, Math.max(4, step * 2));
         if (highGrid) highStrength = highLayerAt(x, z);

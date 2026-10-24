@@ -45,7 +45,8 @@ public final class BetterCloudsShaderPatch {
                     vec3 scale = SIZE * dynScale * scaleFalloff;
                         scale *= lw_size;
                         scale.y *= mix(1.0, 0.2, lw_flat);"""},
-            // Storm clouds are dark from below but sunlit from above: looking down at one, most of the darkness goes.
+            // Storm clouds are dark from below but sunlit from above: a cloud below the camera loses most of its
+            // darkness. Judged by height rather than view angle, so far clouds near the horizon count too.
             // The clouds' own long-range depth, so clouds past the game's far plane still sort. Set per vertex rather
             // than per fragment (gl_FragDepth), which would stop the GPU from skipping hidden fragments early.
             {"    gl_Position = u_mvp_matrix * vec4(vertexPos, 1.0);\n#endif", """
@@ -56,7 +57,7 @@ public final class BetterCloudsShaderPatch {
                             gl_Position.z = (LW_FAR + LW_NEAR) / (LW_FAR - LW_NEAR) * gl_Position.w - 2.0 * LW_FAR * LW_NEAR / (LW_FAR - LW_NEAR);
                         }""".formatted(DEPTH_RANGE)},
             {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
-                    float lw_seen_dark = floor(lw_dark * mix(1.0, 0.25, smoothstep(0.0, -0.3, worldDirection.y)) + 0.5);
+                    float lw_seen_dark = floor(lw_dark * mix(1.0, 0.25, smoothstep(0.0, -48.0, localWorldPosition.y)) + 0.5);
                         pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
     };
 
