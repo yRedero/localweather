@@ -74,6 +74,23 @@ Debugging switches for `runClient` (both loaders): `-PnoShaderPatch` (leave Bett
 
 On NeoForge, before every client launch (Gradle or IDE), `installClientMods` copies Better Clouds and YACL from Modrinth into `run/mods`. Better Clouds is client-only and crashes servers, so the server and gametest runs use `run-server/` instead. On Fabric, Loom puts them on the client's dev classpath and Fabric skips client-only mods on servers by itself. Voxy has no Fabric 1.21.1 release on Modrinth, so its depth hookup only works through Roxy on NeoForge. Versions are in `gradle.properties`.
 
+### Flicker hunting in a real setup
+
+The dev runs can't reproduce everything: other mods' production jars, a real LOD store, and how a player actually moves. `tools/live/` runs the same checks against a real launcher profile without touching it (Windows; Python tools need Pillow and NumPy):
+
+```
+powershell tools/live/grab_cmdline.ps1 -ProcessId <pid of the running game>   # its launch command, login token blanked (gitignored)
+python tools/live/prodscene.py <profile> <world> <run dir> [--size 2560x1440] [--debug-occlusion] [--disable better-clouds] ...
+bash tools/live/walktest.sh <profile> <world> <run dir> <name> --bob true   # walks with real key presses, scores row flicker
+powershell tools/live/mcdrive.ps1 -ProcessId <pid> -Steps "tap:F2","down:A","wait:500","up:A"   # drive any running game
+python tools/rowscore.py <frames> [x0 y0 x1 y1]     # how much pixel rows jump around between frames (bands switching on and off)
+python tools/lodflick.py <frames> [heat.png] [--mask lod_depth.png]   # flicker counted only on Voxy terrain
+```
+
+`prodscene.py` copies the profile once into the run folder, starts it with the launcher's own command minus the Modrinth wrapper, and can leave mods out to bisect. The dev scene's system properties work in the release jar too, and `-Pwarmup=<ticks>` / `-PwindowSize=1920x1080` set warmup and window size in the dev runs.
+
+Found with these (0.1.6): the horizontal bands that flicker over far terrain while walking are Voxy's, not the clouds'. They appear with only Sodium + Voxy installed and disappear with view bobbing off (row score 8.7 vs 0.85). 1.21.1 puts view bobbing into the projection matrix, and Voxy builds its own projection by replacing the near/far entries of that matrix, which is only exact without bobbing. Workaround: turn off View Bobbing.
+
 ## Next
 
 1. Distant rain shafts under far-away cells, positional thunder.

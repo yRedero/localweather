@@ -26,9 +26,17 @@ neoForge {
             if (project.hasProperty('quickPlay')) {
                 programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
             }
+            // -PwindowSize=1920x1080: window size, which matters when comparing aliasing.
+            if (project.hasProperty('windowSize')) {
+                var size = project.property('windowSize').toString().split('x')
+                programArguments.addAll '--width', size[0], '--height', size[1]
+            }
             // -PdevScene places storms around you and saves screenshots to run/screenshots, see DevScene.
             if (project.hasProperty('strafeSpeed')) {
                 systemProperty 'localweather.strafeSpeed', project.property('strafeSpeed').toString()
+            }
+            if (project.hasProperty('warmup')) {
+                systemProperty 'localweather.warmup', project.property('warmup').toString()
             }
             if (project.hasProperty('debugOcclusion')) {
                 systemProperty 'localweather.debugOcclusion', 'true'

@@ -21,8 +21,11 @@ final class DevSceneClient {
             {"south_near_thunderstorm", 0.0F, -12.0F},
             {"up", -60.0F, -70.0F},
     };
-    /** Time for Better Clouds to finish generating before the first shot. */
-    private static final int WARMUP_TICKS = 300;
+    /**
+     * Time for Better Clouds to finish generating before the first shot. -Pwarmup=<ticks> waits longer, e.g. for
+     * Voxy to build its far terrain in a fresh copy of a world.
+     */
+    private static final int WARMUP_TICKS = Integer.getInteger("localweather.warmup", 300);
     private static final int TICKS_PER_VIEW = 100;
 
     private static int ticks = -1;

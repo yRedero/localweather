@@ -63,8 +63,15 @@ loom {
             if (project.hasProperty('quickPlay')) {
                 programArgs '--quickPlaySingleplayer', project.property('quickPlay').toString()
             }
+            if (project.hasProperty('windowSize')) {
+                var size = project.property('windowSize').toString().split('x')
+                programArgs '--width', size[0], '--height', size[1]
+            }
             if (project.hasProperty('strafeSpeed')) {
                 property 'localweather.strafeSpeed', project.property('strafeSpeed').toString()
+            }
+            if (project.hasProperty('warmup')) {
+                property 'localweather.warmup', project.property('warmup').toString()
             }
             if (project.hasProperty('debugOcclusion')) {
                 property 'localweather.debugOcclusion', 'true'
