@@ -1,9 +1,22 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        maven {
+            name = 'NeoForged'
+            url = 'https://maven.neoforged.net/releases'
+        }
     }
 }
 
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
+
+rootProject.name = 'localweather'
+
+// common: everything that doesn't depend on a mod loader, compiled into both loader jars.
+include 'common', 'neoforge', 'fabric'

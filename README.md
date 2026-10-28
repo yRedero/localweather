@@ -1,6 +1,14 @@
 # Local Weather
 
-NeoForge 1.21.1 mod that replaces global weather with **storm cells**: discs of rain that form upwind of players, drift with a wandering wind, and fade out. It can pour in one valley while the next one is dry. Built as a companion to [Better Clouds](https://modrinth.com/mod/better-clouds) (optional, client-side, 1.13+).
+NeoForge and Fabric 1.21.1 mod that replaces global weather with **storm cells**: discs of rain that form upwind of players, drift with a wandering wind, and fade out. It can pour in one valley while the next one is dry. Built as a companion to [Better Clouds](https://modrinth.com/mod/better-clouds) (optional, client-side, 1.13+).
+
+Fabric needs Fabric API and [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port) (the same config files as on NeoForge); Mod Menu opens the config screen.
+
+## Layout
+
+- `common/`: all the mod's code, mixins and assets, compiled against vanilla Minecraft only. It reaches the loader through `platform/Platform` (mod list, sending the sync payload), found with `ServiceLoader`.
+- `neoforge/`, `fabric/`: entry classes that hook the shared code to the loader's events, the loader's metadata and game test registration. Both compile the common sources into their own jar.
+- Members NeoForge's access transformer opens up are listed in `common/accesstransformer.cfg` (compile-time only) and opened on Fabric by `fabric/src/main/resources/localweather.accesswidener`.
 
 ## How it works
 
@@ -43,25 +51,28 @@ For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = A
 
 ## Develop
 
+`./gradlew build` builds `neoforge/build/libs/localweather-neoforge-<version>.jar` and `fabric/build/libs/localweather-fabric-<version>.jar`. The NeoForge runs below are `:neoforge:runClient` etc.; the Fabric client takes the same switches as `:fabric:runClient` and plays in `run-fabric/` (servers in `run-fabric-server/`), with Better Clouds, YACL and Mod Menu.
+
 ```
 ./gradlew build
-./gradlew runClient           # with Better Clouds + YACL from Modrinth
-./gradlew runClient -PquickPlay="New World"   # straight into a world
-./gradlew runClient -PquickPlay="New World" -PdevScene   # storms around you, screenshots to run/screenshots, then quits
-./gradlew runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
-./gradlew runClient -PquickPlay="New World" -PdevScene=above    # same storms, seen from high above the clouds
-./gradlew runClient -PquickPlay="New World" -PdevScene=ground   # same storms, standing on the ground
-./gradlew runClient -PquickPlay="New World" -PdevScene=strafe   # world's own weather; walks left/right, a frame per tick
+./gradlew :neoforge:runClient           # with Better Clouds + YACL from Modrinth
+./gradlew :neoforge:runClient -PquickPlay="New World"   # straight into a world
+./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene   # storms around you, screenshots to run/screenshots, then quits
+./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
+./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=above    # same storms, seen from high above the clouds
+./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=ground   # same storms, standing on the ground
+./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=strafe   # world's own weather; walks left/right, a frame per tick
 python tools/flicker.py <frames> <out> [<reference frames>] [--region x0 y0 x1 y1]   # finds flicker in those frames
 ```
 
-Debugging switches for `runClient`: `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
+Debugging switches for `runClient` (both loaders): `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
 
 ```
-./gradlew runGameTestServer   # gametest/LocalWeatherTests
+./gradlew :neoforge:runGameTestServer   # gametest/LocalWeatherTests
+./gradlew :fabric:runGametest            # the same tests on Fabric
 ```
 
-Before every client launch (Gradle or IDE), `installClientMods` copies Better Clouds and YACL from Modrinth into `run/mods`. Better Clouds is client-only and crashes servers, so the server and gametest runs use `run-server/` instead. Versions are in `gradle.properties`.
+On NeoForge, before every client launch (Gradle or IDE), `installClientMods` copies Better Clouds and YACL from Modrinth into `run/mods`. Better Clouds is client-only and crashes servers, so the server and gametest runs use `run-server/` instead. On Fabric, Loom puts them on the client's dev classpath and Fabric skips client-only mods on servers by itself. Voxy has no Fabric 1.21.1 release on Modrinth, so its depth hookup only works through Roxy on NeoForge. Versions are in `gradle.properties`.
 
 ## Next
 

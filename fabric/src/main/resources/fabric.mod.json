@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${mod_version}",
+  "name": "${mod_name}",
+  "description": "Replaces global weather with storm cells that form, drift with the wind and fade out, so it can rain in one place and be clear in another. Built as a companion to Better Clouds.",
+  "authors": ["Redero"],
+  "license": "${mod_license}",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["redero.localweather.fabric.LocalWeatherFabric"],
+    "client": ["redero.localweather.fabric.LocalWeatherFabricClient"],
+    "fabric-gametest": ["redero.localweather.fabric.FabricGameTests"]
+  },
+  "accessWidener": "${mod_id}.accesswidener",
+  "mixins": [
+    "${mod_id}.mixins.json",
+    "${mod_id}.betterclouds.mixins.json",
+    "${mod_id}.fabric.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_min}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=21",
+    "fabric-api": "*",
+    "forgeconfigapiport": ">=${forgeconfigapiport_min}"
+  },
+  "suggests": {
+    "betterclouds": ">=1.13.0",
+    "modmenu": "*"
+  }
+}

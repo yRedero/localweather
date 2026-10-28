@@ -43,3 +43,6 @@ repo/
 desktop.ini
 
 run-server/
+
+run-fabric/
+run-fabric-server/

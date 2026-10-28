@@ -1,0 +1,42 @@
+plugins {
+    id 'net.neoforged.moddev'
+}
+
+// Vanilla Minecraft only: anything loader-specific goes through redero.localweather.platform.Platform or the
+// loader projects, so this compiling proves the shared code works on both.
+neoForge {
+    neoFormVersion = neo_form_version
+    accessTransformers = project.files('accesstransformer.cfg')
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = parchment_minecraft_version
+    }
+}
+
+dependencies {
+    compileOnly "net.fabricmc:sponge-mixin:${mixin_version}"
+    compileOnly "io.github.llamalad7:mixinextras-common:${mixinextras_version}"
+    // ModConfigSpec and ModConfig: NeoForge's own on NeoForge, Forge Config API Port's copy on Fabric.
+    compileOnly "fuzs.forgeconfigapiport:forgeconfigapiport-common-neoforgeapi:${forgeconfigapiport_version}"
+    compileOnly("net.neoforged.fancymodloader:loader:${fml_version}") {
+        transitive = false
+    }
+    // Better Clouds is optional. Its NeoForge jar uses Mojang names, so the shared code compiles against it.
+    compileOnly "maven.modrinth:better-clouds:${betterclouds_version}"
+}
+
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+}
+
+artifacts {
+    commonJava sourceSets.main.java.sourceDirectories.singleFile
+    commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}

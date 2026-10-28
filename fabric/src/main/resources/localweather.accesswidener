@@ -1,0 +1,5 @@
+accessWidener v2 named
+# What NeoForge's own access transformer already opens up and the shared code uses (see common/accesstransformer.cfg).
+accessible class net/minecraft/world/level/biome/Biome$ClimateSettings
+accessible field net/minecraft/world/level/Level rainLevel F
+accessible field net/minecraft/world/level/Level thunderLevel F

@@ -1,0 +1,109 @@
+plugins {
+    id 'fabric-loom'
+}
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'JitPack'
+                url = 'https://jitpack.io'
+            }
+        }
+        filter {
+            includeGroup 'com.github.bawnorton.mixinsquared'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Quilt'
+                url = 'https://maven.quiltmc.org/repository/release/'
+            }
+        }
+        filter {
+            includeGroup 'org.quiltmc.parsers'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${parchment_minecraft_version}:${parchment_mappings_version}@zip")
+    }
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    modImplementation "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forgeconfigapiport_version}"
+
+    // Better Clouds is optional at runtime: compile against it, but don't publish it as a dependency.
+    // Fabric skips it on servers by itself (it is marked client-only), so every run can have it.
+    modCompileOnly "maven.modrinth:better-clouds:${betterclouds_fabric_version}"
+    modLocalRuntime "maven.modrinth:better-clouds:${betterclouds_fabric_version}"
+    modLocalRuntime "maven.modrinth:yacl:${yacl_fabric_version}"
+    // Better Clouds and YACL bundle these inside their jars, which Loom doesn't unpack for dev runs.
+    modLocalRuntime "com.github.bawnorton.mixinsquared:mixinsquared-fabric:0.2.0"
+    localRuntime "gs.mclo:api:5.0.0"
+    localRuntime "org.quiltmc.parsers:json:0.2.1"
+    localRuntime "org.quiltmc.parsers:gson:0.2.1"
+    ["common-image", "common-io", "common-lang"].each { localRuntime "com.twelvemonkeys.common:${it}:3.12.0" }
+    ["imageio-core", "imageio-metadata", "imageio-webp"].each { localRuntime "com.twelvemonkeys.imageio:${it}:3.12.0" }
+    // Opens the config screen in dev.
+    modLocalRuntime "maven.modrinth:modmenu:${modmenu_version}"
+}
+
+loom {
+    accessWidenerPath = file('src/main/resources/localweather.accesswidener')
+    runs {
+        client {
+            client()
+            runDir = '../run-fabric'
+            // Same switches as the NeoForge client, see neoforge/build.gradle.
+            if (project.hasProperty('quickPlay')) {
+                programArgs '--quickPlaySingleplayer', project.property('quickPlay').toString()
+            }
+            if (project.hasProperty('strafeSpeed')) {
+                property 'localweather.strafeSpeed', project.property('strafeSpeed').toString()
+            }
+            if (project.hasProperty('debugOcclusion')) {
+                property 'localweather.debugOcclusion', 'true'
+            }
+            if (project.hasProperty('noShaderPatch')) {
+                property 'localweather.noShaderPatch', 'true'
+            }
+            if (project.hasProperty('devScene')) {
+                var mode = project.property('devScene').toString()
+                property 'localweather.devscene', mode.isEmpty() ? 'true' : mode
+            }
+        }
+        server {
+            server()
+            runDir = '../run-fabric-server'
+        }
+        // ./gradlew :fabric:runGametest runs the game tests on a server and exits.
+        gametest {
+            server()
+            name = 'Game Test'
+            runDir = 'build/gametest'
+            property 'fabric-api.gametest'
+            property 'fabric-api.gametest.report-file', "${project.layout.buildDirectory.get()}/gametest/junit.xml"
+        }
+    }
+}
+
+processResources {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            fabric_loader_min      : fabric_loader_min,
+            forgeconfigapiport_min : forgeconfigapiport_min,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    filesMatching('fabric.mod.json') {
+        expand replaceProperties
+    }
+}
