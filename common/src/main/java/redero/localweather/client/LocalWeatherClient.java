@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -25,6 +26,7 @@ public final class LocalWeatherClient {
     /** End of every client tick. */
     public static void tick() {
         ClientWeather.INSTANCE.tick();
+        RainShafts.tick();
         DevSceneClient.tick();
     }
 
@@ -37,6 +39,12 @@ public final class LocalWeatherClient {
 
     public static void onLoggingOut() {
         ClientWeather.INSTANCE.reset();
+        RainShafts.clear();
+    }
+
+    /** After clouds and weather, with the world's view still set up. */
+    public static void renderAfterWeather(Camera camera, float partialTick) {
+        RainShafts.render(camera, partialTick);
     }
 
     /** F3 lines: weather at the camera, wind, and the three nearest cells. */

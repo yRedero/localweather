@@ -8,6 +8,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
@@ -39,6 +40,13 @@ public class LocalWeatherNeoForgeClient {
         @SubscribeEvent
         public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
             LocalWeatherClient.onLoggingOut();
+        }
+
+        @SubscribeEvent
+        public static void onRenderStage(RenderLevelStageEvent event) {
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_WEATHER) {
+                LocalWeatherClient.renderAfterWeather(event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+            }
         }
 
         @SubscribeEvent

@@ -167,12 +167,17 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
      */
     private static float belowCloudsAt(Entity camera) {
         if (!LocalWeatherClientConfig.SPEC.isLoaded() || !LocalWeatherClientConfig.NO_RAIN_ABOVE_CLOUDS.get()) return 1.0F;
-        if (!(camera.level() instanceof net.minecraft.client.multiplayer.ClientLevel clientLevel)) return 1.0F;
-        float cloudHeight = clientLevel.effects().getCloudHeight();
-        if (Float.isNaN(cloudHeight)) return 1.0F;
-        double base = cloudHeight + INSTANCE.cloudHeightOffset();
+        double base = cloudBase(camera.level());
+        if (Double.isNaN(base)) return 1.0F;
         double t = Mth.clamp((camera.getEyeY() - (base - 8.0)) / 32.0, 0.0, 1.0);
         return (float) (1.0 - t * t * (3.0 - 2.0 * t));
+    }
+
+    /** Height of the cloud base where Better Clouds draws it, or NaN in a dimension without clouds. */
+    public static double cloudBase(Level level) {
+        if (!(level instanceof net.minecraft.client.multiplayer.ClientLevel clientLevel)) return Double.NaN;
+        float cloudHeight = clientLevel.effects().getCloudHeight();
+        return Float.isNaN(cloudHeight) ? Double.NaN : cloudHeight + INSTANCE.cloudHeightOffset();
     }
 
     public void reset() {

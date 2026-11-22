@@ -41,12 +41,15 @@ public final class LightningFlashes {
         private final float fullVolume;
         private int age;
 
-        RollingThunder(float volume, float pitch) {
+        /** Heard from the flash's direction; its loudness is set here by distance, not by the sound engine. */
+        RollingThunder(double x, double y, double z, float volume, float pitch) {
             super(SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, RANDOM);
             this.fullVolume = volume;
             this.volume = volume * THUNDER_START;
             this.pitch = pitch;
-            this.relative = true;
+            this.x = x;
+            this.y = y;
+            this.z = z;
             this.attenuation = SoundInstance.Attenuation.NONE;
         }
 
@@ -108,7 +111,7 @@ public final class LightningFlashes {
         FLASHES.add(new Flash(x, z, radius, strength, ticks, RANDOM.nextInt(3)));
     }
 
-    /** Thunder rolls in after the flash, later and quieter the further away it is. */
+    /** Thunder rolls in after the flash from its direction, later and quieter the further away it is. */
     private static void thunderFrom(double x, double z, Entity camera) {
         if (!LocalWeatherClientConfig.SPEC.isLoaded() || !LocalWeatherClientConfig.DISTANT_THUNDER.get()) return;
         double distance = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
@@ -116,7 +119,10 @@ public final class LightningFlashes {
         float volume = (float) (1.0 - distance / THUNDER_RANGE) * 0.9F;
         float pitch = 0.55F + RANDOM.nextFloat() * 0.3F;
         int delay = (int) (distance / SOUND_SPEED);
-        Minecraft.getInstance().getSoundManager().playDelayed(new RollingThunder(volume, pitch), delay);
+        // From the storm's direction, at the height of its clouds.
+        double base = ClientWeather.cloudBase(camera.level());
+        double y = Double.isNaN(base) ? camera.getY() + 100.0 : base;
+        Minecraft.getInstance().getSoundManager().playDelayed(new RollingThunder(x, y, z, volume, pitch), delay);
     }
 
     /**

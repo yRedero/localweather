@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import redero.localweather.LocalWeather;
 import redero.localweather.client.ClientWeather;
@@ -23,5 +24,7 @@ public final class LocalWeatherFabricClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> LocalWeatherClient.tick());
         ClientEntityEvents.ENTITY_LOAD.register((entity, level) -> LocalWeatherClient.onEntityJoin(entity));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> LocalWeatherClient.onLoggingOut());
+        WorldRenderEvents.LAST.register(context -> LocalWeatherClient.renderAfterWeather(context.camera(),
+                context.tickCounter().getGameTimeDeltaPartialTick(false)));
     }
 }

@@ -15,6 +15,8 @@ Fabric needs Fabric API and [Forge Config API Port](https://modrinth.com/mod/for
 - **Server** (`server/`): `WeatherSimulator` runs in place of vanilla's `advanceWeatherCycle`. Every second it moves and ages cells, spawns new ones upwind of players (weighted by biome downfall; deserts rarely spawn them) and syncs the cells near each player. Cells are saved per dimension in `WeatherSavedData`.
 - **Gameplay hooks** (`mixin/`): `isRainingAt`, lightning, snow layers and cauldron filling check the cell over that column. Sleeping clears only the storms over the players. `/weather` spawns or clears cells.
 - **Client** (`client/`): `ClientWeather` extrapolates synced cells between syncs and eases rain/thunder at the camera, which drives vanilla's rain, sky, fog and sound. F3 shows the local weather and the nearest cells.
+  - *Rain shafts* (`RainShafts`): past vanilla's rain, grey veils hang from the cloud base under storms, on a world-fixed grid where the storm's rain shape is strong enough. They face the camera, lean with the wind, thin out towards the ground and take the fog's colour; drawn after clouds and weather with depth clamping, so far storms keep them and nearer terrain hides them (not yet far Voxy terrain).
+  - *Thunder*: in-cloud flashes are followed by thunder from the storm's direction, delayed by distance and swelling in from a third of its volume.
 - **Better Clouds** (`compat/`, `client/betterclouds/`), all optional and tunable in the mod's config screen:
   - *Local coverage*: every cloud sample gets its own cloudiness: the fair-weather cover (`cloudCover`, 0.62; Better Clouds uses 0.5) raised to full overcast by storms. A storm's overcast reaches about a third past its rain, and clouds only turn dark where it actually rains. Rain, lightning and clouds all use the same noise-bent storm outline (`StormCell`), so a dark cloud overhead means rain.
   - *Far clouds*: draws clouds out to 2560 blocks (Better Clouds stops at 4x render distance). Beyond `detailDistance` (1536) only every 2nd cloud is generated at twice the size, beyond twice that every 4th at four times; the boundary is dithered so there's no visible ring. Clouds write their own depth with a 16 km range so far clouds sort correctly instead of flickering through each other.
@@ -31,7 +33,7 @@ Cell types: `shower` (0.9-1.6 km radius), `rain` (2.6-4.8 km fronts), `thunderst
 
 Two config files, both editable in the mod list (Local Weather → Config). Presets fill in the values they cover when you pick them, in the screen or in the file (also while the game is closed); the values can still be tweaked afterwards. `CUSTOM` never changes anything.
 
-- **Client** (`config/localweather-client.toml`), one `preset` (`DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`): cloud resolution, no rain above the clouds, cloud cover, cloud height offset (used without a Local Weather server), far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep.
+- **Client** (`config/localweather-client.toml`), one `preset` (`DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`): cloud resolution, no rain above the clouds, rain shafts and their strength, cloud cover, cloud height offset (used without a Local Weather server), far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep.
 - **World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/localweather-server.toml`, which overrides it), two presets:
   - `heightPreset` (`AUTO`, the default; `VANILLA` 192, `TECTONIC` +160, `TALL_TERRAIN` +320): cloud height and dry above the clouds. `AUTO` asks the world generator for the surface height on a 25x25 grid over ±7.7 km around spawn (no chunks generated, on a background thread) and puts the cloud base above most peaks and at least above the highest sample. It's saved per dimension and redone if the build height changes; `/localweather cloudheight` shows it, `/localweather cloudheight recompute` redoes it.
   - `weatherPreset` (`DEFAULT`, `CALM`, `STORMY`, `HUGE_STORMS`): storm size, lifetime, count and frequency, shower and thunderstorm chance, wind speeds.
@@ -76,5 +78,5 @@ On NeoForge, before every client launch (Gradle or IDE), `installClientMods` cop
 
 ## Next
 
-1. Distant rain shafts under far-away cells, positional thunder.
-2. Config, datapack biome weather profiles, season-mod hooks.
+1. Rain shafts hidden properly behind far Voxy terrain (Voxy depth, as the clouds do).
+2. Datapack biome weather profiles, season-mod hooks.
