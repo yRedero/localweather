@@ -22,15 +22,14 @@ public abstract class EffectTintProviderMixin {
     @WrapOperation(method = "getCloudsColor", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/multiplayer/ClientLevel;getRainLevel(F)F"))
     private static float localweather$softRain(ClientLevel level, float partialTick, Operation<Float> original) {
-        float rain = original.call(level, partialTick);
-        return perCloudDarkness() ? rain * keep() : rain;
+        // The area's weather, not the rain at the camera, which stops above the cloud base and at a storm's edge.
+        return perCloudDarkness() ? ClientWeather.INSTANCE.tintRain(partialTick) * keep() : original.call(level, partialTick);
     }
 
     @WrapOperation(method = "getCloudsColor", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/multiplayer/ClientLevel;getThunderLevel(F)F"))
     private static float localweather$softThunder(ClientLevel level, float partialTick, Operation<Float> original) {
-        float thunder = original.call(level, partialTick);
-        return perCloudDarkness() ? thunder * keep() : thunder;
+        return perCloudDarkness() ? ClientWeather.INSTANCE.tintThunder(partialTick) * keep() : original.call(level, partialTick);
     }
 
     private static float keep() {

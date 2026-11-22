@@ -49,6 +49,11 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     private float skyRain, oSkyRain, skyThunder, oSkyThunder;
     /** Overcast around the camera: dims sky and fog before the rain arrives. */
     private float gloom, oGloom;
+    /**
+     * The weather of the area for tinting the clouds: like the sky's, but not cut off above the cloud base, so the
+     * clouds don't brighten all at once when the camera climbs past them.
+     */
+    private float tintRain, oTintRain, tintThunder, oTintThunder;
     /** 1 below the cloud base, 0 above it (if rain above the clouds is off). */
     private float belowClouds = 1.0F;
     private final float[] sample = new float[3];
@@ -111,6 +116,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         float targetSkyRain = skyRainSum / 5.0F * targetBelow;
         float targetSkyThunder = skyThunderSum / 5.0F * targetBelow;
         float targetGloom = cloudSum / 5.0F * targetBelow;
+        float targetTintRain = skyRainSum / 5.0F;
+        float targetTintThunder = skyThunderSum / 5.0F;
 
         if (snapLevels) {
             rain = targetRain;
@@ -118,6 +125,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
             skyRain = targetSkyRain;
             skyThunder = targetSkyThunder;
             gloom = targetGloom;
+            tintRain = targetTintRain;
+            tintThunder = targetTintThunder;
             belowClouds = targetBelow;
             snapLevels = false;
         }
@@ -127,6 +136,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         skyRain = approach(skyRain, targetSkyRain, SLOW_STEP);
         skyThunder = approach(skyThunder, targetSkyThunder, SLOW_STEP);
         gloom = approach(gloom, targetGloom, SLOW_STEP);
+        tintRain = approach(tintRain, targetTintRain, SLOW_STEP);
+        tintThunder = approach(tintThunder, targetTintThunder, SLOW_STEP);
         belowClouds = targetBelow;
 
         windOffsetX += windX;
@@ -140,6 +151,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         oSkyRain = skyRain;
         oSkyThunder = skyThunder;
         oGloom = gloom;
+        oTintRain = tintRain;
+        oTintThunder = tintThunder;
         oWindOffsetX = windOffsetX;
         oWindOffsetZ = windOffsetZ;
     }
@@ -169,6 +182,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         rain = oRain = thunder = oThunder = 0.0F;
         skyRain = oSkyRain = skyThunder = oSkyThunder = 0.0F;
         gloom = oGloom = 0.0F;
+        tintRain = oTintRain = tintThunder = oTintThunder = 0.0F;
         belowClouds = 1.0F;
         LightningFlashes.clear();
     }
@@ -215,6 +229,16 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     public boolean belowClouds() {
         return belowClouds > 0.5F;
+    }
+
+    /** Rain of the area for tinting the clouds, the same above and below the cloud base. */
+    public float tintRain(float partialTick) {
+        return Mth.lerp(partialTick, oTintRain, tintRain);
+    }
+
+    /** Thunder of the area for tinting the clouds, already multiplied by its rain like vanilla's. */
+    public float tintThunder(float partialTick) {
+        return Mth.lerp(partialTick, oTintThunder, tintThunder) * tintRain(partialTick);
     }
 
     /** Overcast around the camera, 0..1, or 0 without local weather. */
