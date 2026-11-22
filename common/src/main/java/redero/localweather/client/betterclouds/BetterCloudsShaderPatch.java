@@ -48,8 +48,6 @@ public final class BetterCloudsShaderPatch {
                         vec3 lw_base = scale;
                         scale *= lw_size;
                         scale.y *= mix(1.0, 0.2, lw_flat);"""},
-            // Storm clouds are dark from below but sunlit from above: a cloud below the camera loses most of its
-            // darkness. Judged by height rather than view angle, so far clouds near the horizon count too.
             // Enlarged (far, storm) clouds grow upwards: their bottom stays where a normal cloud's would be, so they
             // don't sag into tall terrain below the cloud base, where cube faces cutting through far mountains shimmer.
             {"vec3 vertexPos = scale * in_vert + cloudPos;", """
@@ -64,8 +62,12 @@ public final class BetterCloudsShaderPatch {
                             %s
                             gl_Position.z = (LW_FAR + LW_NEAR) / (LW_FAR - LW_NEAR) * gl_Position.w - 2.0 * LW_FAR * LW_NEAR / (LW_FAR - LW_NEAR);
                         }""".formatted(DEPTH_RANGE)},
+            // Storm clouds are sunlit on top and dark underneath: faces turned up lose most of their darkness, faces
+            // turned down keep all of it, sides sit between. Part of the cloud, not of where the player is, so it
+            // looks the same from above and below. One normal per face, so the value is the same at all its corners.
             {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
-                    float lw_seen_dark = floor(lw_dark * mix(1.0, 0.25, smoothstep(0.0, -48.0, localWorldPosition.y)) + 0.5);
+                    float lw_lit = in_normal.y >= 0.0 ? mix(0.4, 0.25, in_normal.y) : mix(0.4, 1.0, -in_normal.y);
+                        float lw_seen_dark = floor(lw_dark * lw_lit + 0.5);
                         pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
     };
 

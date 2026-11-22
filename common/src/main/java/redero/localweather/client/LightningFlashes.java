@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -31,6 +31,31 @@ public final class LightningFlashes {
     private static final List<Flash> FLASHES = new ArrayList<>();
     private static final RandomSource RANDOM = RandomSource.create();
     private static long ticks;
+
+    /** Distant thunder starts at this share of its volume and swells to full over {@link #THUNDER_SWELL_TICKS}. */
+    private static final float THUNDER_START = 0.35F;
+    private static final int THUNDER_SWELL_TICKS = 30;
+
+    /** Thunder that rolls in: it starts quiet and swells, instead of opening with the sound's loud crack. */
+    private static final class RollingThunder extends AbstractTickableSoundInstance {
+        private final float fullVolume;
+        private int age;
+
+        RollingThunder(float volume, float pitch) {
+            super(SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, RANDOM);
+            this.fullVolume = volume;
+            this.volume = volume * THUNDER_START;
+            this.pitch = pitch;
+            this.relative = true;
+            this.attenuation = SoundInstance.Attenuation.NONE;
+        }
+
+        @Override
+        public void tick() {
+            age++;
+            volume = fullVolume * Mth.lerp(Math.min(1.0F, age / (float) THUNDER_SWELL_TICKS), THUNDER_START, 1.0F);
+        }
+    }
 
     /** A glow centred on (x, z) with the given radius; flicker is picked per flash. */
     private record Flash(double x, double z, float radius, float strength, long start, int pattern) {
@@ -91,9 +116,7 @@ public final class LightningFlashes {
         float volume = (float) (1.0 - distance / THUNDER_RANGE) * 0.9F;
         float pitch = 0.55F + RANDOM.nextFloat() * 0.3F;
         int delay = (int) (distance / SOUND_SPEED);
-        Minecraft.getInstance().getSoundManager().playDelayed(new SimpleSoundInstance(
-                SoundEvents.LIGHTNING_BOLT_THUNDER.getLocation(), SoundSource.WEATHER, volume, pitch, RANDOM, false, 0,
-                SoundInstance.Attenuation.NONE, 0.0, 0.0, 0.0, true), delay);
+        Minecraft.getInstance().getSoundManager().playDelayed(new RollingThunder(volume, pitch), delay);
     }
 
     /**
