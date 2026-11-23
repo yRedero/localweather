@@ -21,9 +21,12 @@ public final class CloudCode extends AABB {
         this.code = code;
     }
 
-    /** @param size 1 to 4, or 6 or 8 (doubled 3 and 4), @param darkness 0 to 1 */
-    public static int encode(int size, float darkness, boolean flat) {
-        int dark = Mth.clamp(Math.round(darkness * 7.0F), 0, 7);
+    /**
+     * @param size 1 to 4, or 6 or 8 (doubled 3 and 4), @param darkness 0 to 1, @param dither 0 to 1, fixed per cloud:
+     * rounds darkness up or down at random in proportion, so the 8 steps blend instead of forming rings.
+     */
+    public static int encode(int size, float darkness, boolean flat, float dither) {
+        int dark = Mth.clamp(Mth.floor(darkness * 7.0F + dither), 0, 7);
         boolean doubled = size > 4;
         int base = Mth.clamp(doubled ? size / 2 : size, 1, 4);
         return (base - 1) | dark << 2 | (flat ? 1 << 5 : 0) | (doubled ? 1 << 6 : 0);

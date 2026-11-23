@@ -38,12 +38,14 @@ public final class RainShafts {
     /** Veils are found again this often (they barely move in between). */
     private static final int REFRESH_TICKS = 10;
     /** Vanilla's rain covers the camera's surroundings; veils fade in between these distances. */
-    private static final double FADE_IN_START = 160.0;
-    private static final double FADE_IN_END = 420.0;
-    /** Rain needs to be at least this strong at a grid point for a veil. */
-    private static final float MIN_RAIN = 0.15F;
+    private static final double FADE_IN_START = 450.0;
+    private static final double FADE_IN_END = 1100.0;
+    /** Rain needs to be at least this strong at a grid point for a veil, so veils stay under the dark core. */
+    private static final float MIN_RAIN = 0.3F;
     /** Strips per veil; each gets its own density so the veil looks streaky. */
-    private static final int STRIPS = 6;
+    private static final int STRIPS = 10;
+    /** Share of a veil's height over which it fades in below the cloud base, so it has no hard top edge. */
+    private static final double TOP_FADE = 0.15;
     /** Rain falls about this fast, in blocks per second, which sets how far the wind slants a veil. */
     private static final double FALL_SPEED = 9.0;
     private static final float BASE_ALPHA = 0.3F;
@@ -118,11 +120,11 @@ public final class RainShafts {
         double windX = weather.windX() * 20.0;
         double windZ = weather.windZ() * 20.0;
 
-        // A darker shade of the fog, so the veils match the sky at noon, at sunset and at night.
+        // A dark shade of the fog, as in a storm's shadow, so the veils match the sky at noon, at sunset and at night.
         float[] fog = RenderSystem.getShaderFogColor();
-        float red = Mth.lerp(0.4F, fog[0] * 0.62F, 0.33F * fog[0] + 0.05F);
-        float green = Mth.lerp(0.4F, fog[1] * 0.62F, 0.34F * fog[1] + 0.05F);
-        float blue = Mth.lerp(0.4F, fog[2] * 0.62F, 0.38F * fog[2] + 0.06F);
+        float red = fog[0] * 0.42F + 0.03F;
+        float green = fog[1] * 0.43F + 0.03F;
+        float blue = fog[2] * 0.47F + 0.04F;
 
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         for (Shaft shaft : SHAFTS) {
@@ -132,7 +134,7 @@ public final class RainShafts {
             if (distance < FADE_IN_START || distance > maxDistance) continue;
             float fade = smoothstep(FADE_IN_START, FADE_IN_END, distance)
                     * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
-            float alpha = BASE_ALPHA * strength * Math.min(1.0F, shaft.rain * 1.4F) * fade;
+            float alpha = BASE_ALPHA * strength * Math.min(1.0F, (shaft.rain - MIN_RAIN) / (1.0F - MIN_RAIN) * 1.6F) * fade;
             if (alpha < 0.004F) continue;
 
             double top = base + 6.0 - cam.y;
@@ -144,21 +146,30 @@ public final class RainShafts {
             // Face the camera: the veil spreads across the line of sight.
             double rightX = -dz / distance;
             double rightZ = dx / distance;
-            double width = SPACING * (1.1 + 0.4 * shaft.seed);
+            // Narrower than the grid, so there are gaps between veils and they read as separate shafts.
+            double width = SPACING * (0.55 + 0.35 * shaft.seed);
+            double fadeY = top - (top - bottom) * TOP_FADE;
+            double fadeT = TOP_FADE;
+            int seed = Mth.floor(shaft.seed * 100000.0F);
             for (int i = 0; i < STRIPS; i++) {
                 float u0 = (float) i / STRIPS, u1 = (float) (i + 1) / STRIPS;
-                // Denser in the middle, soft at the edges, and every strip a little different.
+                // Denser in the middle, soft at the edges, and strips of very different density: streaks.
                 float edge = (float) Math.sin(Math.PI * (u0 + u1) * 0.5);
-                float streak = 0.55F + 0.45F * hash(Mth.floor(shaft.seed * 1000.0F), i, 4);
-                float a = alpha * edge * streak;
+                float streak = hash(seed, i, 4);
+                float a = alpha * edge * streak * streak * 1.6F;
                 double o0 = (u0 - 0.5) * width, o1 = (u1 - 0.5) * width;
                 double x0 = dx + rightX * o0, z0 = dz + rightZ * o0;
                 double x1 = dx + rightX * o1, z1 = dz + rightZ * o1;
-                // Thick under the cloud base, thinning on the way down.
-                buffer.addVertex((float) x0, (float) top, (float) z0).setColor(red, green, blue, a);
-                buffer.addVertex((float) (x0 + leanX), (float) bottom, (float) (z0 + leanZ)).setColor(red, green, blue, a * 0.35F);
-                buffer.addVertex((float) (x1 + leanX), (float) bottom, (float) (z1 + leanZ)).setColor(red, green, blue, a * 0.35F);
-                buffer.addVertex((float) x1, (float) top, (float) z1).setColor(red, green, blue, a);
+                // Fades in just below the cloud base, then thins out on the way down.
+                double mx0 = x0 + leanX * fadeT, mz0 = z0 + leanZ * fadeT, mx1 = x1 + leanX * fadeT, mz1 = z1 + leanZ * fadeT;
+                buffer.addVertex((float) x0, (float) top, (float) z0).setColor(red, green, blue, 0.0F);
+                buffer.addVertex((float) mx0, (float) fadeY, (float) mz0).setColor(red, green, blue, a);
+                buffer.addVertex((float) mx1, (float) fadeY, (float) mz1).setColor(red, green, blue, a);
+                buffer.addVertex((float) x1, (float) top, (float) z1).setColor(red, green, blue, 0.0F);
+                buffer.addVertex((float) mx0, (float) fadeY, (float) mz0).setColor(red, green, blue, a);
+                buffer.addVertex((float) (x0 + leanX), (float) bottom, (float) (z0 + leanZ)).setColor(red, green, blue, a * 0.3F);
+                buffer.addVertex((float) (x1 + leanX), (float) bottom, (float) (z1 + leanZ)).setColor(red, green, blue, a * 0.3F);
+                buffer.addVertex((float) mx1, (float) fadeY, (float) mz1).setColor(red, green, blue, a);
             }
         }
         MeshData mesh = buffer.build();

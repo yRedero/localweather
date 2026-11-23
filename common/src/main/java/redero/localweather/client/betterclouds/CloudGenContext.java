@@ -304,7 +304,7 @@ public final class CloudGenContext implements WeatherView {
     }
 
     private int code(int size, float dark, boolean flat) {
-        return encode ? CloudCode.encode(size, dark, flat) : 0;
+        return encode ? CloudCode.encode(size, dark, flat, hash(sampleX, sampleZ, 77)) : 0;
     }
 
     /**

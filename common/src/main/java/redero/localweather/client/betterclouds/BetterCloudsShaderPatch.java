@@ -67,7 +67,9 @@ public final class BetterCloudsShaderPatch {
             // looks the same from above and below. One normal per face, so the value is the same at all its corners.
             {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
                     float lw_lit = in_normal.y >= 0.0 ? mix(0.4, 0.25, in_normal.y) : mix(0.4, 1.0, -in_normal.y);
-                        float lw_seen_dark = floor(lw_dark * lw_lit + 0.5);
+                        // Rounded up or down at random per cloud (not to the nearest), so the steps don't form rings.
+                        float lw_dither = fract(sin(mod(dot(floor(in_pos.xz), vec2(12.9898, 78.233)), 6283.0)) * 43758.5453);
+                        float lw_seen_dark = min(floor(lw_dark * lw_lit + lw_dither), 7.0);
                         pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
     };
 
