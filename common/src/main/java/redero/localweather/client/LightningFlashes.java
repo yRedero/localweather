@@ -20,7 +20,7 @@ import redero.localweather.weather.StormCell;
  */
 public final class LightningFlashes {
     /** At most this many flashes at once; the shader takes this many. */
-    public static final int MAX = 4;
+    public static final int MAX = 8;
     /** Per tick, a fully grown thunderstorm starts an in-cloud flash with this chance (about every 4 seconds). */
     private static final float CLOUD_FLASH_CHANCE = 0.012F;
     /** Sound travels about this many blocks per tick (340 m/s). */

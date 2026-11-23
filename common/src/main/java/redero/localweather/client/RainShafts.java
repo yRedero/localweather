@@ -303,27 +303,31 @@ public final class RainShafts {
         java.util.Random random = new java.util.Random(seed);
         double ground = groundAt(level, x, z);
         double distance = Math.sqrt(Mth.square(x - cam.x) + Mth.square(z - cam.z));
-        // Two pixels or so wide however far away (about 3 blocks per km), so it shows against a bright day sky too.
-        double width = Math.max(2.0, distance * 0.003);
-        float alpha = Math.min(1.0F, intensity * 1.5F);
-        int segments = 14;
+        // A few pixels wide however far away (about 4 blocks per km), so it shows against a bright day sky too.
+        // About one in six is a huge bolt: three times as wide, brighter, branching several times.
+        boolean huge = random.nextFloat() < 0.17F;
+        double width = Math.max(2.0, distance * 0.004) * (huge ? 3.0 : 1.0);
+        float alpha = Math.min(1.0F, intensity * (huge ? 2.2F : 1.5F));
+        int segments = huge ? 18 : 14;
         double step = (base - ground) / segments;
-        // One side branch that forks off a third of the way down and dies out.
-        int branchAt = 3 + random.nextInt(3);
+        // Side branches fork off and die out: one usually, three to five on a huge bolt.
+        int branches = huge ? 3 + random.nextInt(3) : 1;
+        long branchMask = 0;
+        for (int b = 0; b < branches; b++) branchMask |= 1L << (2 + random.nextInt(Math.max(1, segments - 6)));
         double px = x - cam.x, pz = z - cam.z, py = base - cam.y;
         for (int i = 0; i < segments; i++) {
             double nx = px + (random.nextDouble() - 0.5) * step * 1.2;
             double nz = pz + (random.nextDouble() - 0.5) * step * 1.2;
             double ny = py - step;
             boltSegment(buffer, px, py, pz, nx, ny, nz, width, alpha);
-            if (i == branchAt) {
+            if ((branchMask & 1L << i) != 0) {
                 double bx = px, by = py, bz = pz;
                 double dirX = random.nextDouble() - 0.5, dirZ = random.nextDouble() - 0.5;
-                for (int j = 0; j < 5; j++) {
+                for (int j = 0; j < (huge ? 7 : 5); j++) {
                     double cx = bx + (dirX + (random.nextDouble() - 0.5) * 0.6) * step;
                     double cz = bz + (dirZ + (random.nextDouble() - 0.5) * 0.6) * step;
                     double cy = by - step * 0.8;
-                    boltSegment(buffer, bx, by, bz, cx, cy, cz, width * 0.6, alpha * (1.0F - j * 0.18F));
+                    boltSegment(buffer, bx, by, bz, cx, cy, cz, width * 0.6, alpha * Math.max(0.1F, 1.0F - j * 0.15F));
                     bx = cx;
                     by = cy;
                     bz = cz;

@@ -73,9 +73,7 @@ public final class BetterCloudsShaderPatch {
                         // Rounded up or down at random per cloud (not to the nearest), so the steps don't form rings.
                         float lw_dither = fract(sin(mod(dot(floor(in_pos.xz), vec2(12.9898, 78.233)), 6283.0)) * 43758.5453);
                         float lw_seen_dark = min(floor(lw_dark + lw_dither), 7.0);
-                        // Better Clouds' smooth noise, with a little of each cloud's own random value mixed in, so
-                        // neighbouring storm clouds differ in shade (see the shading patch) instead of matching.
-                        float lw_noise = mix(texture(u_noise_texture, localWorldPosition.xz / 1024.0).g, lw_dither, 0.35);
+                        float lw_noise = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;
                         pass_color.b = (lw_seen_dark + 0.05 + 0.85 * lw_noise) / 8.0;"""},
     };
 
@@ -167,6 +165,24 @@ public final class BetterCloudsShaderPatch {
                     vec3 cloudData = texelFetch(u_data_texture, ivec2(gl_FragCoord), 0).rgb;
                         // Local Weather: the blue channel holds 8 darkness steps with the colour noise inside each step.
                         float lw_dark = floor(cloudData.b * 8.0) / 7.0;
+                        // Darkness blurred over the clouds around this pixel (two rings of taps, sky skipped), so a storm
+                        // base shades smoothly across whole areas instead of cloud by cloud in 8 steps.
+                        if (lw_dark > 0.0) {
+                            ivec2 lw_size = textureSize(u_data_texture, 0) - 1;
+                            float lw_sum = lw_dark;
+                            float lw_count = 1.0;
+                            for (int i = 0; i < 12; i++) {
+                                float lw_angle = float(i) * 0.5236 + (i % 2 == 0 ? 0.0 : 0.26);
+                                float lw_radius = i % 2 == 0 ? 7.0 : 16.0;
+                                ivec2 lw_tap = clamp(lw_px + ivec2(round(vec2(cos(lw_angle), sin(lw_angle)) * lw_radius)), ivec2(0), lw_size);
+                                vec3 lw_other = texelFetch(u_data_texture, lw_tap, 0).rgb;
+                                if (lw_other != vec3(0.0)) {
+                                    lw_sum += floor(lw_other.b * 8.0) / 7.0;
+                                    lw_count += 1.0;
+                                }
+                            }
+                            lw_dark = lw_sum / lw_count;
+                        }
                         cloudData.b = clamp((fract(cloudData.b * 8.0) - 0.05) / 0.85, 0.0, 1.0);"""},
             {"color_lumi *= u_color_grading.x;", """
                     // The 8 darkness steps vary with Better Clouds' smooth noise (cloudData.b, slow over ~1000 blocks),
@@ -208,7 +224,7 @@ public final class BetterCloudsShaderPatch {
                     uniform vec2 lw_resolution;
                     // Lightning flashes: x, z relative to the camera, radius, intensity; and the cloud layer's height
                     // relative to the camera, where the glow is placed.
-                    uniform vec4 lw_flashes[4];
+                    uniform vec4 lw_flashes[8];
                     uniform int lw_flash_count;
                     uniform float lw_cloud_y;"""},
             // Lightning lights up the clouds around it: a soft glow where the view ray meets the cloud layer.
@@ -220,7 +236,7 @@ public final class BetterCloudsShaderPatch {
                             if (lw_t > 0.0) {
                                 vec2 lw_hit = lw_dir.xz * lw_t;
                                 float lw_glow = 0.0;
-                                for (int i = 0; i < 4; i++) {
+                                for (int i = 0; i < 8; i++) {
                                     if (i >= lw_flash_count) break;
                                     float lw_d = distance(lw_hit, lw_flashes[i].xy);
                                     lw_glow += lw_flashes[i].w * (1.0 - smoothstep(0.0, lw_flashes[i].z, lw_d));
