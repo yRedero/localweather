@@ -111,7 +111,7 @@ public final class RainShafts {
         if (Double.isNaN(base)) return;
 
         Vec3 cam = camera.getPosition();
-        double maxDistance = LocalWeatherClientConfig.CLOUD_DISTANCE.get();
+        double maxDistance = Math.min(LocalWeatherClientConfig.RAIN_SHAFT_DISTANCE.get(), LocalWeatherClientConfig.CLOUD_DISTANCE.get());
         float strength = LocalWeatherClientConfig.RAIN_SHAFT_STRENGTH.get().floatValue();
         ClientWeather weather = ClientWeather.INSTANCE;
         // Blocks per second the wind carries the rain; the veil's foot trails behind its top by the fall time.
