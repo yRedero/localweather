@@ -59,11 +59,18 @@ public final class RainShafts {
     /** Rain falls about this fast, in blocks per second, which sets how far the wind slants a veil. */
     private static final double FALL_SPEED = 9.0;
     private static final float BASE_ALPHA = 0.3F;
+    /** The haze: a coarser grid of wide, soft veils that overlap into one, for any rain at all. */
+    private static final double HAZE_SPACING = 300.0;
+    private static final float HAZE_MIN_RAIN = 0.05F;
+    private static final double HAZE_FADE_IN_START = 150.0;
+    private static final double HAZE_FADE_IN_END = 450.0;
+    private static final float HAZE_ALPHA = 0.1F;
 
     private record Shaft(double x, double z, float rain, float seed, double ground) {
     }
 
     private static final List<Shaft> SHAFTS = new ArrayList<>();
+    private static final List<Shaft> HAZE = new ArrayList<>();
     /** Registered by the loader's shader event; without it the veils aren't drawn. */
     @Nullable
     private static ShaderInstance shader;
@@ -84,6 +91,7 @@ public final class RainShafts {
     public static void tick() {
         if (!enabled()) {
             SHAFTS.clear();
+            HAZE.clear();
             return;
         }
         if (ticks++ % REFRESH_TICKS != 0) return;
@@ -91,9 +99,12 @@ public final class RainShafts {
         ClientLevel level = mc.level;
         if (level == null) return;
         SHAFTS.clear();
+        HAZE.clear();
         ClientWeather weather = ClientWeather.INSTANCE;
         int ahead = weather.aheadTicks();
+        boolean haze = LocalWeatherClientConfig.RAIN_HAZE.get() > 0.0;
         for (StormCell cell : weather.cells()) {
+            if (haze) findHaze(level, cell, ahead);
             double cx = cell.centerX(ahead);
             double cz = cell.centerZ(ahead);
             double reach = cell.radius * 1.35;
@@ -112,6 +123,23 @@ public final class RainShafts {
         }
     }
 
+    private static void findHaze(ClientLevel level, StormCell cell, int ahead) {
+        double cx = cell.centerX(ahead);
+        double cz = cell.centerZ(ahead);
+        double reach = cell.radius * 1.35;
+        int minX = Mth.floor((cx - reach) / HAZE_SPACING), maxX = Mth.floor((cx + reach) / HAZE_SPACING);
+        int minZ = Mth.floor((cz - reach) / HAZE_SPACING), maxZ = Mth.floor((cz + reach) / HAZE_SPACING);
+        for (int gx = minX; gx <= maxX; gx++) {
+            for (int gz = minZ; gz <= maxZ; gz++) {
+                double x = (gx + 0.25 + 0.5 * hash(gx, gz, 11)) * HAZE_SPACING;
+                double z = (gz + 0.25 + 0.5 * hash(gx, gz, 12)) * HAZE_SPACING;
+                float rain = cell.rainAt(x, z, ahead);
+                if (rain < HAZE_MIN_RAIN) continue;
+                HAZE.add(new Shaft(x, z, rain, hash(gx, gz, 13), groundAt(level, x, z)));
+            }
+        }
+    }
+
     /** The surface where it is loaded, else sea level (far veils end in the fog or behind terrain anyway). */
     private static double groundAt(ClientLevel level, double x, double z) {
         int bx = Mth.floor(x), bz = Mth.floor(z);
@@ -121,7 +149,7 @@ public final class RainShafts {
 
     /** Draws the veils; call after the clouds and the weather, with the world's view matrices still applied. */
     public static void render(Camera camera, float partialTick) {
-        if (!enabled() || SHAFTS.isEmpty() || shader == null) return;
+        if (!enabled() || (SHAFTS.isEmpty() && HAZE.isEmpty()) || shader == null) return;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -143,6 +171,39 @@ public final class RainShafts {
         float blue = fog[2] * 0.47F + 0.04F;
 
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        // The haze first, the shafts on top. Coloured like the sky, a little greyer.
+        float hazeStrength = LocalWeatherClientConfig.RAIN_HAZE.get().floatValue();
+        float grey = 0.3F * fog[0] + 0.59F * fog[1] + 0.11F * fog[2];
+        float hazeRed = Mth.lerp(0.35F, fog[0], grey) * 0.85F;
+        float hazeGreen = Mth.lerp(0.35F, fog[1], grey) * 0.85F;
+        float hazeBlue = Mth.lerp(0.35F, fog[2], grey) * 0.88F;
+        for (Shaft haze : HAZE) {
+            double dx = haze.x - cam.x;
+            double dz = haze.z - cam.z;
+            double distance = Math.sqrt(dx * dx + dz * dz);
+            if (distance < HAZE_FADE_IN_START || distance > maxDistance) continue;
+            float fade = smoothstep(HAZE_FADE_IN_START, HAZE_FADE_IN_END, distance)
+                    * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
+            float a = HAZE_ALPHA * hazeStrength * Math.min(1.0F, haze.rain * 1.6F) * fade;
+            if (a < 0.002F) continue;
+            double top = base - cam.y;
+            double bottom = haze.ground - cam.y;
+            if (top <= bottom) continue;
+            double fadeY = top - (top - bottom) * 0.25;
+            double rightX = -dz / distance, rightZ = dx / distance;
+            // Wide enough that neighbours overlap into one haze.
+            double half = HAZE_SPACING * (1.0 + 0.2 * haze.seed);
+            double x0 = dx - rightX * half, z0 = dz - rightZ * half;
+            double x1 = dx + rightX * half, z1 = dz + rightZ * half;
+            buffer.addVertex((float) x0, (float) top, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
+            buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
+            buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
+            buffer.addVertex((float) x1, (float) top, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
+            buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
+            buffer.addVertex((float) x0, (float) bottom, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
+            buffer.addVertex((float) x1, (float) bottom, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
+            buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
+        }
         for (Shaft shaft : SHAFTS) {
             double dx = shaft.x - cam.x;
             double dz = shaft.z - cam.z;
@@ -236,6 +297,7 @@ public final class RainShafts {
 
     public static void clear() {
         SHAFTS.clear();
+        HAZE.clear();
     }
 
     private static float smoothstep(double edge0, double edge1, double x) {

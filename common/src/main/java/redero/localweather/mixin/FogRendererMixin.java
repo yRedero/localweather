@@ -13,11 +13,15 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.FogRenderer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.world.phys.Vec3;
 import redero.localweather.client.ClientWeather;
 
-@Mixin(FogRenderer.class)
+// After other fog mods' changes (Sodium Extra sets fog at the end of setupFog too), so rain fog builds on them.
+@Mixin(value = FogRenderer.class, priority = 1500)
 public abstract class FogRendererMixin {
     @Shadow
     private static float fogRed;
@@ -39,6 +43,21 @@ public abstract class FogRendererMixin {
     private static float localweather$skyThunder(ClientLevel level, float partialTick, Operation<Float> original) {
         float thunder = ClientWeather.INSTANCE.skyThunderLevel(partialTick);
         return Float.isNaN(thunder) ? original.call(level, partialTick) : thunder;
+    }
+
+    /** Fog closes in while you stand in rain: down to a third of the view in the heaviest rain, never under 48 blocks. */
+    @Inject(method = "setupFog", at = @At("TAIL"))
+    private static void localweather$rainFog(Camera camera, FogRenderer.FogMode mode, float farPlaneDistance, boolean thickFog,
+                                             float partialTick, CallbackInfo ci) {
+        if (mode != FogRenderer.FogMode.FOG_TERRAIN || thickFog || camera.getFluidInCamera() != FogType.NONE) return;
+        if (camera.getEntity() instanceof LivingEntity living
+                && (living.hasEffect(MobEffects.BLINDNESS) || living.hasEffect(MobEffects.DARKNESS))) return;
+        float fog = ClientWeather.INSTANCE.rainFog(partialTick);
+        if (fog <= 0.0F) return;
+        float end = RenderSystem.getShaderFogEnd();
+        float closest = Math.min(end, Math.max(48.0F, end * 0.35F));
+        RenderSystem.setShaderFogEnd(Mth.lerp(fog, end, closest));
+        RenderSystem.setShaderFogStart(Mth.lerp(fog, RenderSystem.getShaderFogStart(), closest * 0.1F));
     }
 
     /** Fog greys over with the sky, so the horizon matches it. */

@@ -39,6 +39,8 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.BooleanValue RAIN_SHAFTS;
     public static final ModConfigSpec.DoubleValue RAIN_SHAFT_STRENGTH;
     public static final ModConfigSpec.IntValue RAIN_SHAFT_DISTANCE;
+    public static final ModConfigSpec.DoubleValue RAIN_HAZE;
+    public static final ModConfigSpec.DoubleValue RAIN_FOG;
     public static final ModConfigSpec.DoubleValue SKY_GLOOM;
     public static final ModConfigSpec.DoubleValue GLOBAL_TINT;
 
@@ -111,6 +113,11 @@ public final class LocalWeatherClientConfig {
         RAIN_SHAFT_DISTANCE = b.comment("How far away rain shafts are drawn, in blocks (never further than the clouds).",
                         "Lower it if many storms in view cost too much.")
                 .defineInRange("rainShaftDistance", 2560, 512, 8192);
+        RAIN_HAZE = b.comment("A soft haze hangs under rain clouds wherever it rains, even lightly, so you can see rain from afar.",
+                        "0 turns it off, 1 is normal, 2 is thick.")
+                .defineInRange("rainHaze", 1.0, 0.0, 2.0);
+        RAIN_FOG = b.comment("Fog closes in around you while you stand in rain, more in heavy rain. 0 turns it off, 1 is thickest.")
+                .defineInRange("rainFog", 0.6, 0.0, 1.0);
         b.pop();
 
         b.comment("Sky and lighting.").push("sky");
@@ -172,7 +179,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 240), Map.entry(STORM_DARKNESS, true),
                     Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 160),
-                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 2560), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
+                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 2560), Map.entry(RAIN_HAZE, 1.0), Map.entry(RAIN_FOG, 0.6), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case PERFORMANCE -> Map.ofEntries(
                     Map.entry(CLOUD_RESOLUTION, 0.5),
                     Map.entry(CLOUD_COVER, 0.6), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
@@ -180,7 +187,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 160), Map.entry(STORM_DARKNESS, true),
                     Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, false), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, false), Map.entry(HIGH_LAYER_HEIGHT, 160),
-                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 1536), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
+                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 1536), Map.entry(RAIN_HAZE, 1.0), Map.entry(RAIN_FOG, 0.6), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.35));
             case CINEMATIC -> Map.ofEntries(
                     Map.entry(CLOUD_RESOLUTION, 1.0),
                     Map.entry(CLOUD_COVER, 0.66), Map.entry(CLOUD_HEIGHT_OFFSET, 0), Map.entry(FAR_CLOUDS, true),
@@ -188,7 +195,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 320), Map.entry(STORM_DARKNESS, true),
                     Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 200),
-                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 4096), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
+                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 4096), Map.entry(RAIN_HAZE, 1.0), Map.entry(RAIN_FOG, 0.6), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
             // Tectonic's mountains reach towards the 320 build limit, so clouds start above them.
             case VOXY_TECTONIC -> Map.ofEntries(
                     Map.entry(CLOUD_RESOLUTION, 0.75),
@@ -197,7 +204,7 @@ public final class LocalWeatherClientConfig {
                     Map.entry(STORM_TOWERS, true), Map.entry(TOWER_HEIGHT, 360), Map.entry(STORM_DARKNESS, true),
                     Map.entry(DARKNESS_STRENGTH, 1.0), Map.entry(THICK_RAIN_CLOUDS, true), Map.entry(LIGHTNING_FLASHES, true), Map.entry(DISTANT_THUNDER, true),
                     Map.entry(HIGH_LAYER, true), Map.entry(HIGH_LAYER_HEIGHT, 280),
-                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 6144), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
+                    Map.entry(NO_RAIN_ABOVE_CLOUDS, true), Map.entry(RAIN_SHAFTS, true), Map.entry(RAIN_SHAFT_STRENGTH, 1.0), Map.entry(RAIN_SHAFT_DISTANCE, 6144), Map.entry(RAIN_HAZE, 1.0), Map.entry(RAIN_FOG, 0.6), Map.entry(SKY_GLOOM, 1.0), Map.entry(GLOBAL_TINT, 0.3));
             case CUSTOM -> Map.of();
         };
     }

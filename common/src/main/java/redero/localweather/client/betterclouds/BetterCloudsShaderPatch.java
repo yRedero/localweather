@@ -62,15 +62,19 @@ public final class BetterCloudsShaderPatch {
                             %s
                             gl_Position.z = (LW_FAR + LW_NEAR) / (LW_FAR - LW_NEAR) * gl_Position.w - 2.0 * LW_FAR * LW_NEAR / (LW_FAR - LW_NEAR);
                         }""".formatted(DEPTH_RANGE)},
-            // Storm clouds are sunlit on top and dark underneath: faces turned up lose most of their darkness, faces
-            // turned down keep all of it, sides sit between. Part of the cloud, not of where the player is, so it
-            // looks the same from above and below. One normal per face, so the value is the same at all its corners.
+            // Storm clouds are sunlit on top and dark underneath: faces turned up lose most of their darkness, sides
+            // and undersides keep all of it (bright sides made the base look checkered from below). Part of the cloud,
+            // not of where the player is, so it looks the same from above and below. One normal per face, so the value
+            // is the same at all its corners.
             {"pass_color.b = texture(u_noise_texture, localWorldPosition.xz / 1024.0).g;", """
-                    float lw_lit = in_normal.y >= 0.0 ? mix(0.4, 0.25, in_normal.y) : mix(0.4, 1.0, -in_normal.y);
+                    float lw_lit = mix(1.0, 0.25, max(in_normal.y, 0.0));
                         // Rounded up or down at random per cloud (not to the nearest), so the steps don't form rings.
                         float lw_dither = fract(sin(mod(dot(floor(in_pos.xz), vec2(12.9898, 78.233)), 6283.0)) * 43758.5453);
                         float lw_seen_dark = min(floor(lw_dark * lw_lit + lw_dither), 7.0);
-                        pass_color.b = (lw_seen_dark + 0.05 + 0.85 * texture(u_noise_texture, localWorldPosition.xz / 1024.0).g) / 8.0;"""},
+                        // Better Clouds' smooth noise, with a little of each cloud's own random value mixed in, so
+                        // neighbouring storm clouds differ in shade (see the shading patch) instead of matching.
+                        float lw_noise = mix(texture(u_noise_texture, localWorldPosition.xz / 1024.0).g, lw_dither, 0.35);
+                        pass_color.b = (lw_seen_dark + 0.05 + 0.85 * lw_noise) / 8.0;"""},
     };
 
     private static final String[][] COVERAGE_DEPTH = {
@@ -163,10 +167,13 @@ public final class BetterCloudsShaderPatch {
                         float lw_dark = floor(cloudData.b * 8.0) / 7.0;
                         cloudData.b = clamp((fract(cloudData.b * 8.0) - 0.05) / 0.85, 0.0, 1.0);"""},
             {"color_lumi *= u_color_grading.x;", """
-                    color_lumi *= mix(1.0, 0.22, min(lw_dark, 1.0));
+                    // The 8 darkness steps vary with Better Clouds' smooth noise (cloudData.b, slow over ~1000 blocks),
+                        // so storm bases shade in soft broad gradients instead of two flat greys.
+                        float lw_shade = clamp(min(lw_dark, 1.0) * (0.7 + 0.6 * cloudData.b), 0.0, 1.0);
+                        color_lumi *= mix(1.0, 0.22, lw_shade);
                         // Storm bases are grey: the sky's hue (blue by day, orange at sunset) fades out as they darken,
                         // instead of turning them deep blue or purple.
-                        color_chroma = mix(color_chroma, vec3(1.0), 0.7 * min(lw_dark, 1.0));
+                        color_chroma = mix(color_chroma, vec3(1.0), 0.7 * lw_shade);
                         color_lumi *= u_color_grading.x;"""},
             // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds.
             {"out_color.a *= u_opacity.y;", """

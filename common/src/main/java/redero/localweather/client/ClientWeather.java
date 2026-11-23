@@ -236,6 +236,12 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         return belowClouds > 0.5F;
     }
 
+    /** How far fog closes in around the camera because of rain, 0..1 (rain at the camera times the setting). */
+    public float rainFog(float partialTick) {
+        if (!active || !LocalWeatherClientConfig.SPEC.isLoaded()) return 0.0F;
+        return LocalWeatherClientConfig.RAIN_FOG.get().floatValue() * Mth.lerp(partialTick, oRain, rain);
+    }
+
     /** Rain of the area for tinting the clouds, the same above and below the cloud base. */
     public float tintRain(float partialTick) {
         return Mth.lerp(partialTick, oTintRain, tintRain);
