@@ -6,6 +6,10 @@ import java.util.List;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL32;
 
+import javax.annotation.Nullable;
+
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -17,10 +21,13 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import redero.localweather.LocalWeather;
+import redero.localweather.client.betterclouds.VoxyDepth;
 import redero.localweather.weather.StormCell;
 
 /**
@@ -29,10 +36,13 @@ import redero.localweather.weather.StormCell;
  *
  * <p>The veils stand on a grid fixed to the world, one where a storm's rain (the same shape the server rains with)
  * is strong enough. They turn to face the camera, lean with the wind and thin out towards the ground, and are drawn
- * in a few strips of different density so they look streaky. They are drawn after the clouds and terrain with depth
- * clamping, so storms past the game's far plane still get them, while nearer terrain hides them.
+ * in a few strips of different density so they look streaky. They are drawn after the clouds and terrain by their
+ * own shader (shaders/core/rain_shaft), which hides them only where terrain is really nearer: storms past the game's
+ * far plane can't be depth tested the usual way, so it compares distances from the game's and Voxy's depth.
  */
 public final class RainShafts {
+    /** The veils' core shader, registered by each loader. */
+    public static final ResourceLocation SHADER = ResourceLocation.fromNamespaceAndPath(LocalWeather.MODID, "rain_shaft");
     /** Grid spacing of the veils, in blocks. */
     private static final double SPACING = 220.0;
     /** Veils are found again this often (they barely move in between). */
@@ -54,6 +64,12 @@ public final class RainShafts {
     }
 
     private static final List<Shaft> SHAFTS = new ArrayList<>();
+    /** Registered by the loader's shader event; without it the veils aren't drawn. */
+    @Nullable
+    private static ShaderInstance shader;
+    /** A copy of the scene's depth for the shader to read while it draws onto the scene. */
+    @Nullable
+    private static TextureTarget depthCopy;
     private static int ticks;
 
     private RainShafts() {
@@ -105,7 +121,7 @@ public final class RainShafts {
 
     /** Draws the veils; call after the clouds and the weather, with the world's view matrices still applied. */
     public static void render(Camera camera, float partialTick) {
-        if (!enabled() || SHAFTS.isEmpty()) return;
+        if (!enabled() || SHAFTS.isEmpty() || shader == null) return;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -175,19 +191,47 @@ public final class RainShafts {
         MeshData mesh = buffer.build();
         if (mesh == null) return;
 
-        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderTarget main = mc.getMainRenderTarget();
+        if (depthCopy == null) {
+            depthCopy = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
+        } else if (depthCopy.width != main.width || depthCopy.height != main.height) {
+            depthCopy.resize(main.width, main.height, Minecraft.ON_OSX);
+        }
+        depthCopy.copyDepthFrom(main);
+        main.bindWrite(false);
+
+        ShaderInstance program = shader;
+        program.setSampler("SceneDepth", depthCopy.getDepthTextureId());
+        program.safeGetUniform("DepthRange").set(0.05F, mc.gameRenderer.getDepthFar());
+        VoxyDepth.Snapshot voxy = VoxyDepth.current();
+        if (voxy != null) {
+            program.setSampler("LodDepth", voxy.texture());
+            program.safeGetUniform("LodInvProj").set(voxy.inverseProjection());
+            program.safeGetUniform("LodInfo").set(1.0F, voxy.zeroToOne() ? 1.0F : 0.0F);
+        } else {
+            program.setSampler("LodDepth", depthCopy.getDepthTextureId());
+            program.safeGetUniform("LodInfo").set(0.0F, 0.0F);
+        }
+
+        RenderSystem.setShader(() -> program);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.enableDepthTest();
+        // The shader does its own depth test by distance; depth is only clamped so far veils aren't clipped away.
+        RenderSystem.disableDepthTest();
         RenderSystem.depthMask(false);
         RenderSystem.disableCull();
-        // Past the far plane: clamp depth instead of clipping, like Better Clouds does for its far clouds.
         GL11.glEnable(GL32.GL_DEPTH_CLAMP);
         BufferUploader.drawWithShader(mesh);
         GL11.glDisable(GL32.GL_DEPTH_CLAMP);
         RenderSystem.enableCull();
+        RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         RenderSystem.disableBlend();
+    }
+
+    /** Called by the loader once the shader is compiled (also after resource reloads). */
+    public static void setShader(ShaderInstance compiled) {
+        shader = compiled;
     }
 
     public static void clear() {

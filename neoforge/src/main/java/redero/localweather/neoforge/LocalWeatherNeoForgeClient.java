@@ -1,6 +1,12 @@
 package redero.localweather.neoforge;
 
+import java.io.IOException;
+
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+
+import net.minecraft.client.renderer.ShaderInstance;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -8,17 +14,27 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import redero.localweather.LocalWeather;
 import redero.localweather.client.LocalWeatherClient;
+import redero.localweather.client.RainShafts;
 
 @Mod(value = LocalWeather.MODID, dist = Dist.CLIENT)
 public class LocalWeatherNeoForgeClient {
-    public LocalWeatherNeoForgeClient(ModContainer container) {
+    public LocalWeatherNeoForgeClient(IEventBus modBus, ModContainer container) {
         LocalWeatherClient.init();
+        modBus.addListener((RegisterShadersEvent event) -> {
+            try {
+                event.registerShader(new ShaderInstance(event.getResourceProvider(), RainShafts.SHADER,
+                        DefaultVertexFormat.POSITION_COLOR), RainShafts::setShader);
+            } catch (IOException e) {
+                LocalWeather.LOGGER.error("Could not load the rain shaft shader", e);
+            }
+        });
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 

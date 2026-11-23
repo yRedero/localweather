@@ -164,6 +164,9 @@ public final class BetterCloudsShaderPatch {
                         cloudData.b = clamp((fract(cloudData.b * 8.0) - 0.05) / 0.85, 0.0, 1.0);"""},
             {"color_lumi *= u_color_grading.x;", """
                     color_lumi *= mix(1.0, 0.22, min(lw_dark, 1.0));
+                        // Storm bases are grey: the sky's hue (blue by day, orange at sunset) fades out as they darken,
+                        // instead of turning them deep blue or purple.
+                        color_chroma = mix(color_chroma, vec3(1.0), 0.7 * min(lw_dark, 1.0));
                         color_lumi *= u_color_grading.x;"""},
             // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds.
             {"out_color.a *= u_opacity.y;", """
