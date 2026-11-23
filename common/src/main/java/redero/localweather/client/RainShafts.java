@@ -65,6 +65,7 @@ public final class RainShafts {
     private static final double HAZE_FADE_IN_START = 150.0;
     private static final double HAZE_FADE_IN_END = 450.0;
     private static final float HAZE_ALPHA = 0.17F;
+    private static final int HAZE_STRIPS = 6;
 
     private record Shaft(double x, double z, float rain, float seed, double ground) {
     }
@@ -80,6 +81,28 @@ public final class RainShafts {
     private static int ticks;
 
     private RainShafts() {
+    }
+
+    /** True when this draws lightning, so vanilla's bolt can be hidden (it would be drawn twice). */
+    public static boolean drawsBolts() {
+        return shader != null && ClientWeather.INSTANCE.active() && LightningFlashes.enabled();
+    }
+
+    /** Geometry closer than this in front of the camera, or behind it, is skipped (see {@link #ahead}). */
+    private static final double NEAR = 1.0;
+    private static float lookX, lookY, lookZ;
+
+    /**
+     * Whether a point (relative to the camera) lies in front of it. These are drawn with depth clamping so far ones
+     * aren't cut off, which also turns off clipping at the near plane: a corner behind the camera would stretch its
+     * quad across the whole screen for a frame (a dark flash near the edge of storms).
+     */
+    private static boolean ahead(double x, double y, double z) {
+        return x * lookX + y * lookY + z * lookZ > NEAR;
+    }
+
+    private static boolean ahead(double x0, double y0, double z0, double x1, double y1, double z1) {
+        return ahead(x0, y0, z0) && ahead(x1, y1, z1);
     }
 
     private static boolean enabled() {
@@ -149,7 +172,8 @@ public final class RainShafts {
 
     /** Draws the veils; call after the clouds and the weather, with the world's view matrices still applied. */
     public static void render(Camera camera, float partialTick) {
-        if (!enabled() || shader == null) return;
+        boolean veils = enabled();
+        if (shader == null || !(veils || drawsBolts())) return;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -158,8 +182,11 @@ public final class RainShafts {
 
         Vec3 cam = camera.getPosition();
         // From above the cloud base the rain beneath is hidden by the deck: fade out as the camera climbs past it.
-        float below = 1.0F - smoothstep(base - 10.0, base + 40.0, cam.y);
-        if (below <= 0.0F) return;
+        float below = veils ? 1.0F - smoothstep(base - 10.0, base + 40.0, cam.y) : 0.0F;
+        org.joml.Vector3f look = camera.getLookVector();
+        lookX = look.x();
+        lookY = look.y();
+        lookZ = look.z();
         double maxDistance = Math.min(LocalWeatherClientConfig.RAIN_SHAFT_DISTANCE.get(), LocalWeatherClientConfig.CLOUD_DISTANCE.get());
         float strength = LocalWeatherClientConfig.RAIN_SHAFT_STRENGTH.get().floatValue();
         ClientWeather weather = ClientWeather.INSTANCE;
@@ -180,34 +207,45 @@ public final class RainShafts {
         float hazeRed = Mth.lerp(0.35F, fog[0], grey) * 0.85F;
         float hazeGreen = Mth.lerp(0.35F, fog[1], grey) * 0.85F;
         float hazeBlue = Mth.lerp(0.35F, fog[2], grey) * 0.88F;
-        for (Shaft haze : HAZE) {
+        // Under a storm the haze closes in and thickens with its strength: rain and thunder where the camera is.
+        float underRain = weather.cameraRain();
+        float underThunder = weather.cameraThunder();
+        double hazeStart = Mth.lerp(underRain, HAZE_FADE_IN_START, 30.0);
+        double hazeEnd = Mth.lerp(underRain, HAZE_FADE_IN_END, 140.0);
+        float hazeBoost = 1.0F + 1.5F * underRain + 1.0F * underThunder;
+        for (Shaft haze : below > 0.0F ? HAZE : List.<Shaft>of()) {
             double dx = haze.x - cam.x;
             double dz = haze.z - cam.z;
             double distance = Math.sqrt(dx * dx + dz * dz);
-            if (distance < HAZE_FADE_IN_START || distance > maxDistance) continue;
-            float fade = smoothstep(HAZE_FADE_IN_START, HAZE_FADE_IN_END, distance)
+            if (distance < hazeStart || distance > maxDistance) continue;
+            float fade = smoothstep(hazeStart, hazeEnd, distance)
                     * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
-            float a = HAZE_ALPHA * hazeStrength * Math.min(1.0F, haze.rain * 1.6F) * fade * below;
+            float a = Math.min(0.6F, HAZE_ALPHA * hazeStrength * hazeBoost * Math.min(1.0F, haze.rain * 1.6F) * fade * below);
             if (a < 0.002F) continue;
             double top = base - cam.y;
             double bottom = haze.ground - cam.y;
             if (top <= bottom) continue;
             double fadeY = top - (top - bottom) * 0.25;
             double rightX = -dz / distance, rightZ = dx / distance;
-            // Wide enough that neighbours overlap into one haze.
+            // Wide enough that neighbours overlap into one haze, in strips so pieces beside the camera can be
+            // dropped alone (see ahead()).
             double half = HAZE_SPACING * (1.0 + 0.2 * haze.seed);
-            double x0 = dx - rightX * half, z0 = dz - rightZ * half;
-            double x1 = dx + rightX * half, z1 = dz + rightZ * half;
-            buffer.addVertex((float) x0, (float) top, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
-            buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
-            buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
-            buffer.addVertex((float) x1, (float) top, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
-            buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
-            buffer.addVertex((float) x0, (float) bottom, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
-            buffer.addVertex((float) x1, (float) bottom, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
-            buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
+            for (int i = 0; i < HAZE_STRIPS; i++) {
+                double o0 = (2.0 * i / HAZE_STRIPS - 1.0) * half, o1 = (2.0 * (i + 1) / HAZE_STRIPS - 1.0) * half;
+                double x0 = dx + rightX * o0, z0 = dz + rightZ * o0;
+                double x1 = dx + rightX * o1, z1 = dz + rightZ * o1;
+                if (!ahead(x0, top, z0, x1, bottom, z1) || !ahead(x0, bottom, z0, x1, top, z1)) continue;
+                buffer.addVertex((float) x0, (float) top, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
+                buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
+                buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
+                buffer.addVertex((float) x1, (float) top, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
+                buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
+                buffer.addVertex((float) x0, (float) bottom, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
+                buffer.addVertex((float) x1, (float) bottom, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
+                buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
+            }
         }
-        for (Shaft shaft : SHAFTS) {
+        for (Shaft shaft : below > 0.0F ? SHAFTS : List.<Shaft>of()) {
             double dx = shaft.x - cam.x;
             double dz = shaft.z - cam.z;
             double distance = Math.sqrt(dx * dx + dz * dz);
@@ -242,6 +280,7 @@ public final class RainShafts {
                 double x1 = dx + rightX * o1, z1 = dz + rightZ * o1;
                 // Fades in just below the cloud base, then thins out on the way down.
                 double mx0 = x0 + leanX * fadeT, mz0 = z0 + leanZ * fadeT, mx1 = x1 + leanX * fadeT, mz1 = z1 + leanZ * fadeT;
+                if (!ahead(x0, top, z0, x1, top, z1) || !ahead(x0 + leanX, bottom, z0 + leanZ, x1 + leanX, bottom, z1 + leanZ)) continue;
                 buffer.addVertex((float) x0, (float) top, (float) z0).setColor(red, green, blue, 0.0F);
                 buffer.addVertex((float) mx0, (float) fadeY, (float) mz0).setColor(red, green, blue, a);
                 buffer.addVertex((float) mx1, (float) fadeY, (float) mz1).setColor(red, green, blue, a);
@@ -254,8 +293,8 @@ public final class RainShafts {
         }
         // Far lightning: jagged bolts from the cloud base to the ground, flickering with their flash.
         final double baseY = base;
-        LightningFlashes.forEachBolt(partialTick, (x, z, intensity, seed) ->
-                bolt(buffer, level, cam, baseY, x, z, intensity * below, seed));
+        LightningFlashes.forEachBolt(partialTick, (x, groundY, z, intensity, seed) ->
+                bolt(buffer, level, cam, baseY, x, groundY, z, intensity, seed));
         MeshData mesh = buffer.build();
         if (mesh == null) return;
 
@@ -297,16 +336,17 @@ public final class RainShafts {
         RenderSystem.disableBlend();
     }
 
-    private static void bolt(BufferBuilder buffer, ClientLevel level, Vec3 cam, double base, double x, double z,
-                             float intensity, long seed) {
+    private static void bolt(BufferBuilder buffer, ClientLevel level, Vec3 cam, double base, double x, double groundY,
+                             double z, float intensity, long seed) {
         if (intensity <= 0.01F) return;
         java.util.Random random = new java.util.Random(seed);
-        double ground = groundAt(level, x, z);
+        double ground = Double.isNaN(groundY) ? groundAt(level, x, z) : groundY;
+        if (ground >= base) return;
         double distance = Math.sqrt(Mth.square(x - cam.x) + Mth.square(z - cam.z));
         // A few pixels wide however far away (about 4 blocks per km), so it shows against a bright day sky too.
         // About one in six is a huge bolt: three times as wide, brighter, branching several times.
         boolean huge = random.nextFloat() < 0.17F;
-        double width = Math.max(2.0, distance * 0.004) * (huge ? 3.0 : 1.0);
+        double width = Math.max(0.6, distance * 0.004) * (huge ? 3.0 : 1.0);
         float alpha = Math.min(1.0F, intensity * (huge ? 2.2F : 1.5F));
         int segments = huge ? 18 : 14;
         double step = (base - ground) / segments;
@@ -341,6 +381,7 @@ public final class RainShafts {
 
     private static void boltSegment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
                                     double width, float alpha) {
+        if (!ahead(x0, y0, z0, x1, y1, z1)) return;
         segment(buffer, x0, y0, z0, x1, y1, z1, width * 7.0, 0.6F, 0.66F, 0.9F, alpha * 0.25F);
         segment(buffer, x0, y0, z0, x1, y1, z1, width, 1.0F, 1.0F, 1.0F, alpha);
     }

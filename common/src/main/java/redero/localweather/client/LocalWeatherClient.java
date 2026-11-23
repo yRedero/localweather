@@ -33,7 +33,7 @@ public final class LocalWeatherClient {
     /** Real lightning bolts light up the clouds above them. */
     public static void onEntityJoin(Entity entity) {
         if (entity.level().isClientSide() && entity instanceof LightningBolt bolt) {
-            LightningFlashes.bolt(bolt.getX(), bolt.getZ());
+            LightningFlashes.bolt(bolt.getX(), bolt.getY(), bolt.getZ());
         }
     }
 

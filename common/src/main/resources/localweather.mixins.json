@@ -13,6 +13,7 @@
   },
   "client": [
     "ClientLevelMixin",
+    "LightningBoltRendererMixin",
     "FogRendererMixin"
   ]
 }

@@ -67,12 +67,16 @@ public final class LightningFlashes {
     private static final double BOLT_MIN_DISTANCE = 200.0;
     private static final float BOLT_CHANCE = 0.35F;
 
-    /** Draws one visible bolt: where it strikes, its flicker right now, and a seed for its shape. */
+    /**
+     * Draws one visible bolt: where it strikes (groundY NaN: the surface there), its flicker right now, and a seed for
+     * its shape.
+     */
     public interface BoltSink {
-        void bolt(double x, double z, float intensity, long seed);
+        void bolt(double x, double groundY, double z, float intensity, long seed);
     }
 
-    private record Flash(double x, double z, float radius, float strength, long start, int pattern, boolean ground, long seed) {
+    private record Flash(double x, double z, float radius, float strength, long start, int pattern, boolean ground,
+                         double groundY, long seed) {
         float intensity(float time) {
             float t = (time - start) / 20.0F;
             if (t < 0.0F) return 0.0F;
@@ -109,19 +113,22 @@ public final class LightningFlashes {
             double z = cell.centerZ(aheadTicks) + Math.sin(angle) * distance;
             double fromCamera = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
             boolean ground = fromCamera > BOLT_MIN_DISTANCE && (TEST || RANDOM.nextFloat() < BOLT_CHANCE);
-            add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat(), ground);
+            add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat(), ground, Double.NaN);
             thunderFrom(x, z, camera);
         }
     }
 
-    /** A real lightning bolt lights up the clouds above it, brighter than an in-cloud flash. */
-    public static void bolt(double x, double z) {
-        if (enabled()) add(x, z, 260.0F, 1.3F, false);
+    /**
+     * A real lightning bolt lights up the clouds above it, brighter than an in-cloud flash, and is drawn as one of
+     * these bolts where it strikes (vanilla's own is hidden, see LightningBoltRendererMixin).
+     */
+    public static void bolt(double x, double y, double z) {
+        if (enabled()) add(x, z, 260.0F, 1.3F, true, y);
     }
 
-    private static void add(double x, double z, float radius, float strength, boolean ground) {
+    private static void add(double x, double z, float radius, float strength, boolean ground, double groundY) {
         if (FLASHES.size() >= MAX) FLASHES.remove(0);
-        FLASHES.add(new Flash(x, z, radius, strength, ticks, RANDOM.nextInt(3), ground, RANDOM.nextLong()));
+        FLASHES.add(new Flash(x, z, radius, strength, ticks, RANDOM.nextInt(3), ground, groundY, RANDOM.nextLong()));
     }
 
     /** The bolts of flashes that strike the ground, while they flicker. */
@@ -130,7 +137,7 @@ public final class LightningFlashes {
         for (Flash flash : FLASHES) {
             if (!flash.ground) continue;
             float intensity = flash.intensity(time);
-            if (intensity > 0.03F) sink.bolt(flash.x, flash.z, intensity, flash.seed);
+            if (intensity > 0.03F) sink.bolt(flash.x, flash.groundY, flash.z, intensity, flash.seed);
         }
     }
 
@@ -171,7 +178,7 @@ public final class LightningFlashes {
         FLASHES.clear();
     }
 
-    private static boolean enabled() {
+    static boolean enabled() {
         return !LocalWeatherClientConfig.SPEC.isLoaded() || LocalWeatherClientConfig.LIGHTNING_FLASHES.get();
     }
 }
