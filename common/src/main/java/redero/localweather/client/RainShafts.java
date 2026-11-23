@@ -64,7 +64,7 @@ public final class RainShafts {
     private static final float HAZE_MIN_RAIN = 0.05F;
     private static final double HAZE_FADE_IN_START = 150.0;
     private static final double HAZE_FADE_IN_END = 450.0;
-    private static final float HAZE_ALPHA = 0.1F;
+    private static final float HAZE_ALPHA = 0.17F;
 
     private record Shaft(double x, double z, float rain, float seed, double ground) {
     }
@@ -157,6 +157,9 @@ public final class RainShafts {
         if (Double.isNaN(base)) return;
 
         Vec3 cam = camera.getPosition();
+        // From above the cloud base the rain beneath is hidden by the deck: fade out as the camera climbs past it.
+        float below = 1.0F - smoothstep(base - 10.0, base + 40.0, cam.y);
+        if (below <= 0.0F) return;
         double maxDistance = Math.min(LocalWeatherClientConfig.RAIN_SHAFT_DISTANCE.get(), LocalWeatherClientConfig.CLOUD_DISTANCE.get());
         float strength = LocalWeatherClientConfig.RAIN_SHAFT_STRENGTH.get().floatValue();
         ClientWeather weather = ClientWeather.INSTANCE;
@@ -184,7 +187,7 @@ public final class RainShafts {
             if (distance < HAZE_FADE_IN_START || distance > maxDistance) continue;
             float fade = smoothstep(HAZE_FADE_IN_START, HAZE_FADE_IN_END, distance)
                     * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
-            float a = HAZE_ALPHA * hazeStrength * Math.min(1.0F, haze.rain * 1.6F) * fade;
+            float a = HAZE_ALPHA * hazeStrength * Math.min(1.0F, haze.rain * 1.6F) * fade * below;
             if (a < 0.002F) continue;
             double top = base - cam.y;
             double bottom = haze.ground - cam.y;
@@ -211,7 +214,7 @@ public final class RainShafts {
             if (distance < FADE_IN_START || distance > maxDistance) continue;
             float fade = smoothstep(FADE_IN_START, FADE_IN_END, distance)
                     * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
-            float alpha = BASE_ALPHA * strength * Math.min(1.0F, (shaft.rain - MIN_RAIN) / (1.0F - MIN_RAIN) * 1.6F) * fade;
+            float alpha = BASE_ALPHA * strength * Math.min(1.0F, (shaft.rain - MIN_RAIN) / (1.0F - MIN_RAIN) * 1.6F) * fade * below;
             if (alpha < 0.004F) continue;
 
             double top = base + 6.0 - cam.y;

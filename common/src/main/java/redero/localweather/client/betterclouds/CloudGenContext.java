@@ -206,19 +206,20 @@ public final class CloudGenContext implements WeatherView {
         // Dark where it actually rains, so a dark cloud overhead means rain.
         float dark = darkness ? darknessStrength * Mth.clamp(Math.max(0.85F * thunder, 0.75F * smoothstep(0.15F, 0.55F, rain)), 0.0F, 1.0F) : 0.0F;
         if (dark > 0.1F) stats[step][2]++;
-        // Rain decks hang lower than fair-weather clouds, and their underside is lumpy like a real storm base:
-        // broad bulges from a slow noise, plus a little height of its own for every cloud.
+        // Rain decks hang a little lower than fair-weather clouds; their top stays level. The underside is lumpy like
+        // a real storm base (see below), from clouds added underneath rather than lowering the deck's own.
+        double lump = 0.0;
         if (thick && rain > 0.0F) {
+            y -= 12.0 * rain;
             double bulge = 0.5 + 0.5 * STORM_NOISE.getValue((x + originX) / 260.0 + 17.0, (z + originZ) / 260.0 - 31.0);
-            y -= rain * (14.0 + 24.0 * bulge + 8.0 * hash(sampleX, sampleZ, 41));
+            // Broad bulges from a slow noise, a little of its own per cloud, never more than most of a cloud's height,
+            // so the cloud below always overlaps the one above and nothing floats loose.
+            lump = Math.min(rain * (26.0 * bulge + 10.0 * hash(sampleX, sampleZ, 41)), 0.6 * sizeY * size);
         }
         // Better Clouds' second, lower puff for very dense samples: no extras on top of it.
         if (pointsThisSample > 1) return new CloudCode(x, y, z, y, y, code(size, dark, false));
 
-        // Ragged scraps of cloud hang below the base in heavy rain (scud).
-        if (thick && rain > 0.5F && hash(sampleX, sampleZ, 43) < 0.15F) {
-            queue(x, y - 20.0 - 15.0 * hash(sampleX, sampleZ, 44), z, Math.max(1, size / 2), Math.min(1.0F, dark * 1.1F), false, 0.5, 45);
-        }
+        if (lump > 4.0) queue(x, y - lump, z, size, dark, false, 0.2, 45);
         // One puff on every 4th deck cloud is enough to make the deck read as thicker.
         if (thick && rain > 0.4F && towerGrid) {
             queue(x, y + sizeY * size * 0.6, z, size, dark * 0.9F, false, 0.35, 1);
