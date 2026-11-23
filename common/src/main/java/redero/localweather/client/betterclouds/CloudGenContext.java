@@ -74,7 +74,7 @@ public final class CloudGenContext implements WeatherView {
     private boolean kept;
     private float sampleCloudiness;
     private float highStrength;
-    private float rain, thunder, cover, towerShape;
+    private float rain, thunder, cover, towerShape, shelf;
     private final float[] storm = new float[3];
     private long startNanos;
     private int pointsThisSample;
@@ -220,6 +220,10 @@ public final class CloudGenContext implements WeatherView {
         if (pointsThisSample > 1) return new CloudCode(x, y, z, y, y, code(size, dark, false));
 
         if (lump > 4.0) queue(x, y - lump, z, size, dark, false, 0.2, 45);
+        // Shelf cloud: a low, smooth, dark band along the edge a thunderstorm is moving towards.
+        if (thick && shelf > 0.3F) {
+            queue(x, y - 16.0 - 8.0 * shelf, z, Math.max(2, size), Math.min(1.0F, dark + 0.25F), true, 0.1, 46);
+        }
         // One puff on every 4th deck cloud is enough to make the deck read as thicker.
         if (thick && rain > 0.4F && towerGrid) {
             queue(x, y + sizeY * size * 0.6, z, size, dark * 0.9F, false, 0.35, 1);
@@ -283,15 +287,35 @@ public final class CloudGenContext implements WeatherView {
         thunder = 0.0F;
         cover = 0.0F;
         towerShape = 0.0F;
+        shelf = 0.0F;
         if (!hasWeather) return;
         sample(x + originX, z + originZ, storm);
         rain = storm[0];
         thunder = storm[1];
         cover = storm[2];
+        if (thunder > 0.1F) shelf = shelfAt(x + originX, z + originZ);
         if (thunder > 0.0F) {
             double cellsNoise = STORM_NOISE.getValue((x + originX) / 380.0 + 91.0, (z + originZ) / 380.0 + 91.0);
             towerShape = (float) Math.max(0.0, (cellsNoise - TOWER_NOISE) / (1.0 - TOWER_NOISE));
         }
+    }
+
+    /** 0..1: how far this point lies on the leading edge of a moving thunderstorm (where its shelf cloud forms). */
+    private float shelfAt(double worldX, double worldZ) {
+        float best = 0.0F;
+        for (StormCell cell : cells) {
+            if (cell.thunder < 0.3F) continue;
+            double speed = Math.sqrt(cell.vx * cell.vx + cell.vz * cell.vz);
+            if (speed < 1.0E-4) continue;
+            double dx = worldX - cell.centerX(aheadTicks);
+            double dz = worldZ - cell.centerZ(aheadTicks);
+            double along = (dx * cell.vx + dz * cell.vz) / (speed * cell.radius);
+            double across = Math.abs(dx * cell.vz - dz * cell.vx) / (speed * cell.radius);
+            float band = smoothstep(0.68F, 0.82F, (float) along) * (1.0F - smoothstep(0.95F, 1.08F, (float) along));
+            float sides = 1.0F - smoothstep(0.45F, 0.8F, (float) across);
+            best = Math.max(best, band * sides * cell.thunder);
+        }
+        return best;
     }
 
     private CloudCode highCloud(double x, double z, int size) {

@@ -179,9 +179,27 @@ public final class BetterCloudsShaderPatch {
                         // instead of turning them deep blue or purple.
                         color_chroma = mix(color_chroma, vec3(1.0), 0.7 * lw_shade);
                         color_lumi *= u_color_grading.x;"""},
-            // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds.
+            // Sunset glow: with the sun low, cloud undersides catch its light from below, warm, most towards the sun
+            // and most on storm bases. Silver lining: towards the sun, thin cloud (little coverage) lights up.
+            {"out_color.rgb *= u_tint;", """
+                    float lw_low_sun = smoothstep(0.3, 0.04, sun_dir.y) * smoothstep(-0.14, 0.0, sun_dir.y);
+                        if (lw_low_sun > 0.0) {
+                            vec2 lw_sun_xz = sun_dir.xz / max(length(sun_dir.xz), 1e-4);
+                            vec2 lw_frag_xz = frag_dir.xz / max(length(frag_dir.xz), 1e-4);
+                            float lw_towards = 0.3 + 0.7 * max(dot(lw_frag_xz, lw_sun_xz), 0.0);
+                            float lw_under = 1.0 - smoothstep(0.25, 0.65, cloudData.g);
+                            float lw_glow = lw_low_sun * lw_towards * lw_under * (0.35 + 0.65 * min(lw_dark, 1.0));
+                            out_color.rgb = mix(out_color.rgb, vec3(1.0, 0.46, 0.2) * (0.55 + 0.45 * lw_towards), 0.6 * lw_glow);
+                        }
+                        float lw_day = smoothstep(-0.05, 0.12, sun_dir.y);
+                        float lw_forward = pow(max(dot(frag_dir, sun_dir), 0.0), 10.0);
+                        out_color.rgb += vec3(1.0, 0.96, 0.88) * (0.75 * lw_day * lw_forward * (1.0 - out_color.a));
+                        out_color.rgb *= u_tint;"""},
+            // Storm clouds are dense: less see-through than Better Clouds' fair-weather clouds, and a storm in front
+            // of the sun hides it.
             {"out_color.a *= u_opacity.y;", """
                     out_color.a = mix(out_color.a, sqrt(out_color.a), 0.6 * min(lw_dark, 1.0));
+                        out_color.a = mix(out_color.a, 1.0, smoothstep(0.9, 0.995, dot(frag_dir, sun_dir)) * min(lw_dark * 1.5, 1.0));
                         out_color.a *= u_opacity.y;"""},
             // Lower cloud resolution: this full-screen pass reads the smaller cloud textures at scaled coordinates.
             {"uniform sampler2D u_light_texture;", """

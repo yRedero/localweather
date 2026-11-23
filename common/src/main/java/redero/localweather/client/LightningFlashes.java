@@ -61,7 +61,18 @@ public final class LightningFlashes {
     }
 
     /** A glow centred on (x, z) with the given radius; flicker is picked per flash. */
-    private record Flash(double x, double z, float radius, float strength, long start, int pattern) {
+    /** Dev only (-Dlocalweather.lightningTest=true): flashes 8x as often, and every far one shows a bolt. */
+    private static final boolean TEST = Boolean.getBoolean("localweather.lightningTest");
+    /** A third of the in-cloud flashes further than this also show a bolt to the ground. */
+    private static final double BOLT_MIN_DISTANCE = 200.0;
+    private static final float BOLT_CHANCE = 0.35F;
+
+    /** Draws one visible bolt: where it strikes, its flicker right now, and a seed for its shape. */
+    public interface BoltSink {
+        void bolt(double x, double z, float intensity, long seed);
+    }
+
+    private record Flash(double x, double z, float radius, float strength, long start, int pattern, boolean ground, long seed) {
         float intensity(float time) {
             float t = (time - start) / 20.0F;
             if (t < 0.0F) return 0.0F;
@@ -91,24 +102,36 @@ public final class LightningFlashes {
         if (!enabled()) return;
         for (StormCell cell : cells) {
             float strength = cell.thunder * cell.envelope(aheadTicks);
-            if (strength < 0.4F || RANDOM.nextFloat() > CLOUD_FLASH_CHANCE * strength) continue;
+            if (strength < 0.4F || RANDOM.nextFloat() > CLOUD_FLASH_CHANCE * strength * (TEST ? 8.0F : 1.0F)) continue;
             double angle = RANDOM.nextDouble() * Math.PI * 2.0;
             double distance = cell.radius * 0.55 * Math.sqrt(RANDOM.nextDouble());
             double x = cell.centerX(aheadTicks) + Math.cos(angle) * distance;
             double z = cell.centerZ(aheadTicks) + Math.sin(angle) * distance;
-            add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat());
+            double fromCamera = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
+            boolean ground = fromCamera > BOLT_MIN_DISTANCE && (TEST || RANDOM.nextFloat() < BOLT_CHANCE);
+            add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat(), ground);
             thunderFrom(x, z, camera);
         }
     }
 
     /** A real lightning bolt lights up the clouds above it, brighter than an in-cloud flash. */
     public static void bolt(double x, double z) {
-        if (enabled()) add(x, z, 260.0F, 1.3F);
+        if (enabled()) add(x, z, 260.0F, 1.3F, false);
     }
 
-    private static void add(double x, double z, float radius, float strength) {
+    private static void add(double x, double z, float radius, float strength, boolean ground) {
         if (FLASHES.size() >= MAX) FLASHES.remove(0);
-        FLASHES.add(new Flash(x, z, radius, strength, ticks, RANDOM.nextInt(3)));
+        FLASHES.add(new Flash(x, z, radius, strength, ticks, RANDOM.nextInt(3), ground, RANDOM.nextLong()));
+    }
+
+    /** The bolts of flashes that strike the ground, while they flicker. */
+    public static void forEachBolt(float partialTick, BoltSink sink) {
+        float time = ticks + partialTick;
+        for (Flash flash : FLASHES) {
+            if (!flash.ground) continue;
+            float intensity = flash.intensity(time);
+            if (intensity > 0.03F) sink.bolt(flash.x, flash.z, intensity, flash.seed);
+        }
     }
 
     /** Thunder rolls in after the flash from its direction, later and quieter the further away it is. */

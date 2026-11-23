@@ -68,7 +68,7 @@ For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = A
 python tools/flicker.py <frames> <out> [<reference frames>] [--region x0 y0 x1 y1]   # finds flicker in those frames
 ```
 
-Debugging switches for `runClient` (both loaders): `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
+Debugging switches for `runClient` (both loaders): `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). `-Dlocalweather.lightningTest=true` (e.g. through `JAVA_TOOL_OPTIONS`, for autoshot) makes thunderstorms flash 8x as often with a visible bolt every time. The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
 
 ```
 ./gradlew :neoforge:runGameTestServer   # gametest/LocalWeatherTests

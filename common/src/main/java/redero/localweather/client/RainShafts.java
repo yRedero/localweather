@@ -149,7 +149,7 @@ public final class RainShafts {
 
     /** Draws the veils; call after the clouds and the weather, with the world's view matrices still applied. */
     public static void render(Camera camera, float partialTick) {
-        if (!enabled() || (SHAFTS.isEmpty() && HAZE.isEmpty()) || shader == null) return;
+        if (!enabled() || shader == null) return;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -252,6 +252,10 @@ public final class RainShafts {
                 buffer.addVertex((float) mx1, (float) fadeY, (float) mz1).setColor(red, green, blue, a);
             }
         }
+        // Far lightning: jagged bolts from the cloud base to the ground, flickering with their flash.
+        final double baseY = base;
+        LightningFlashes.forEachBolt(partialTick, (x, z, intensity, seed) ->
+                bolt(buffer, level, cam, baseY, x, z, intensity * below, seed));
         MeshData mesh = buffer.build();
         if (mesh == null) return;
 
@@ -291,6 +295,69 @@ public final class RainShafts {
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
         RenderSystem.disableBlend();
+    }
+
+    private static void bolt(BufferBuilder buffer, ClientLevel level, Vec3 cam, double base, double x, double z,
+                             float intensity, long seed) {
+        if (intensity <= 0.01F) return;
+        java.util.Random random = new java.util.Random(seed);
+        double ground = groundAt(level, x, z);
+        double distance = Math.sqrt(Mth.square(x - cam.x) + Mth.square(z - cam.z));
+        // Two pixels or so wide however far away (about 3 blocks per km), so it shows against a bright day sky too.
+        double width = Math.max(2.0, distance * 0.003);
+        float alpha = Math.min(1.0F, intensity * 1.5F);
+        int segments = 14;
+        double step = (base - ground) / segments;
+        // One side branch that forks off a third of the way down and dies out.
+        int branchAt = 3 + random.nextInt(3);
+        double px = x - cam.x, pz = z - cam.z, py = base - cam.y;
+        for (int i = 0; i < segments; i++) {
+            double nx = px + (random.nextDouble() - 0.5) * step * 1.2;
+            double nz = pz + (random.nextDouble() - 0.5) * step * 1.2;
+            double ny = py - step;
+            boltSegment(buffer, px, py, pz, nx, ny, nz, width, alpha);
+            if (i == branchAt) {
+                double bx = px, by = py, bz = pz;
+                double dirX = random.nextDouble() - 0.5, dirZ = random.nextDouble() - 0.5;
+                for (int j = 0; j < 5; j++) {
+                    double cx = bx + (dirX + (random.nextDouble() - 0.5) * 0.6) * step;
+                    double cz = bz + (dirZ + (random.nextDouble() - 0.5) * 0.6) * step;
+                    double cy = by - step * 0.8;
+                    boltSegment(buffer, bx, by, bz, cx, cy, cz, width * 0.6, alpha * (1.0F - j * 0.18F));
+                    bx = cx;
+                    by = cy;
+                    bz = cz;
+                }
+            }
+            px = nx;
+            pz = nz;
+            py = ny;
+        }
+    }
+
+    private static void boltSegment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
+                                    double width, float alpha) {
+        segment(buffer, x0, y0, z0, x1, y1, z1, width * 7.0, 0.6F, 0.66F, 0.9F, alpha * 0.25F);
+        segment(buffer, x0, y0, z0, x1, y1, z1, width, 1.0F, 1.0F, 1.0F, alpha);
+    }
+
+    /** A quad along a line segment, turned to face the camera (at the origin). */
+    private static void segment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
+                                double width, float r, float g, float b, float a) {
+        double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+        double mx = (x0 + x1) * 0.5, my = (y0 + y1) * 0.5, mz = (z0 + z1) * 0.5;
+        // Sideways = segment direction x view direction.
+        double sx = dy * mz - dz * my, sy = dz * mx - dx * mz, sz = dx * my - dy * mx;
+        double length = Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (length < 1.0E-6) return;
+        double half = width * 0.5 / length;
+        sx *= half;
+        sy *= half;
+        sz *= half;
+        buffer.addVertex((float) (x0 - sx), (float) (y0 - sy), (float) (z0 - sz)).setColor(r, g, b, a);
+        buffer.addVertex((float) (x1 - sx), (float) (y1 - sy), (float) (z1 - sz)).setColor(r, g, b, a);
+        buffer.addVertex((float) (x1 + sx), (float) (y1 + sy), (float) (z1 + sz)).setColor(r, g, b, a);
+        buffer.addVertex((float) (x0 + sx), (float) (y0 + sy), (float) (z0 + sz)).setColor(r, g, b, a);
     }
 
     /** Called by the loader once the shader is compiled (also after resource reloads). */
