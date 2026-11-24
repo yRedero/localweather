@@ -26,8 +26,7 @@ public final class LocalWeatherClient {
     /** End of every client tick. */
     public static void tick() {
         ClientWeather.INSTANCE.tick();
-        RainShafts.tick();
-        RainHaze.tick();
+        FarWeather.tick();
         DevSceneClient.tick();
     }
 
@@ -40,12 +39,12 @@ public final class LocalWeatherClient {
 
     public static void onLoggingOut() {
         ClientWeather.INSTANCE.reset();
-        RainShafts.clear();
+        FarWeather.clear();
     }
 
     /** After clouds and weather, with the world's view still set up. */
     public static void renderAfterWeather(Camera camera, float partialTick) {
-        RainShafts.render(camera, partialTick);
+        FarWeather.render(camera, partialTick);
     }
 
     /** F3 lines: weather at the camera, wind, and the three nearest cells. */

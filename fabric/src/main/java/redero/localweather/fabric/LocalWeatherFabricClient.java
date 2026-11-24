@@ -15,7 +15,7 @@ import redero.localweather.LocalWeather;
 import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LocalWeatherClient;
 import redero.localweather.client.RainHaze;
-import redero.localweather.client.RainShafts;
+import redero.localweather.client.FarWeather;
 import redero.localweather.net.WeatherSyncPayload;
 
 /** The F3 lines come from DebugScreenOverlayMixin, Fabric API has no event for them. */
@@ -30,7 +30,7 @@ public final class LocalWeatherFabricClient implements ClientModInitializer {
         ClientEntityEvents.ENTITY_LOAD.register((entity, level) -> LocalWeatherClient.onEntityJoin(entity));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> LocalWeatherClient.onLoggingOut());
         CoreShaderRegistrationCallback.EVENT.register(context -> {
-            context.register(RainShafts.SHADER, DefaultVertexFormat.POSITION_COLOR, RainShafts::setShader);
+            context.register(FarWeather.SHADER, DefaultVertexFormat.POSITION_COLOR, FarWeather::setShader);
             context.register(RainHaze.SHADER, DefaultVertexFormat.POSITION, RainHaze::setShader);
         });
         WorldRenderEvents.LAST.register(context -> LocalWeatherClient.renderAfterWeather(context.camera(),

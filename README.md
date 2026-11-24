@@ -1,86 +1,107 @@
 # Local Weather
 
-NeoForge and Fabric 1.21.1 mod that replaces global weather with **storm cells**: discs of rain that form upwind of players, drift with a wandering wind, and fade out. It can pour in one valley while the next one is dry. Built as a companion to [Better Clouds](https://modrinth.com/mod/better-clouds) (optional, client-side, 1.13+).
+Weather that happens somewhere. Instead of the whole world raining at once, Local Weather sends **storms** across it:
+showers, long rain fronts and thunderstorms that form upwind, drift with the wind and die out again. It can pour in one
+valley while the next one stays dry, and you can watch a storm coming from kilometres away.
 
-Fabric needs Fabric API and [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port) (the same config files as on NeoForge); Mod Menu opens the config screen.
+For Minecraft 1.21.1, on **NeoForge** and **Fabric**. Made to go with [Better Clouds](https://modrinth.com/mod/better-clouds),
+which draws the clouds the storms are made of.
 
-## Layout
+![A thunderstorm seen from afar, rain hanging beneath it](docs/images/storm_far.jpg)
 
-- `common/`: all the mod's code, mixins and assets, compiled against vanilla Minecraft only. It reaches the loader through `platform/Platform` (mod list, sending the sync payload), found with `ServiceLoader`.
-- `neoforge/`, `fabric/`: entry classes that hook the shared code to the loader's events, the loader's metadata and game test registration. Both compile the common sources into their own jar.
-- Members NeoForge's access transformer opens up are listed in `common/accesstransformer.cfg` (compile-time only) and opened on Fabric by `fabric/src/main/resources/localweather.accesswidener`.
+## What it does
 
-## How it works
+**Weather**
+- Storms are real places: rain, snow, thunder and lightning only fall under them. Crops, cauldrons, snow layers and
+  everything else that cares about rain follow.
+- Three kinds: quick **showers**, wide **rain fronts** and **thunderstorms** with lightning in their core (warm biomes only).
+- **Weather regions**: between the storms the sky changes slowly from clear to fair to overcast, in areas several km wide
+  that drift with the wind. Storms gather where it is cloudy; clear spells really are clear.
+- Sleeping clears only the storms over the sleeping players. `/weather` still works.
 
-- **Server** (`server/`): `WeatherSimulator` runs in place of vanilla's `advanceWeatherCycle`. Every second it moves and ages cells, spawns new ones upwind of players (weighted by biome downfall; deserts rarely spawn them) and syncs the cells near each player. Cells are saved per dimension in `WeatherSavedData`.
-- **Gameplay hooks** (`mixin/`): `isRainingAt`, lightning, snow layers and cauldron filling check the cell over that column. Sleeping clears only the storms over the players. `/weather` spawns or clears cells.
-- **Client** (`client/`): `ClientWeather` extrapolates synced cells between syncs and eases rain/thunder at the camera, which drives vanilla's rain, sky, fog and sound. F3 shows the local weather and the nearest cells.
-  - *Rain shafts* (`RainShafts`): past vanilla's rain, grey veils hang from the cloud base under storms, on a world-fixed grid where the storm's rain shape is strong enough. They face the camera, lean with the wind, thin out towards the ground and take the fog's colour; drawn after clouds and weather with depth clamping, so far storms keep them and nearer terrain hides them (not yet far Voxy terrain).
-  - *Rain haze and fog*: grey air below the cloud base wherever it rains, as fog in a screen pass (`RainHaze`, `shaders/core/rain_haze`): each view ray is stepped through a 128x128 map of the storms' rain and thunder around the camera (rewritten every half second), out to the terrain behind it, so the haze follows the real storm outlines with no surfaces to show edges; the shafts are drawn on top for heavy rain; standing in rain, Minecraft's fog closes in (`FogRendererMixin`, after other fog mods such as Sodium Extra; Roxy's own fog for Voxy replaces it there).
-  - *Thunder*: in-cloud flashes are followed by thunder from the storm's direction, delayed by distance and swelling in from a third of its volume.
-- **Better Clouds** (`compat/`, `client/betterclouds/`), all optional and tunable in the mod's config screen:
-  - *Local coverage*: every cloud sample gets its own cloudiness: the fair-weather cover (`cloudCover`, 0.62; Better Clouds uses 0.5) raised to full overcast by storms. A storm's overcast reaches about a third past its rain, and clouds only turn dark where it actually rains. Rain, lightning and clouds all use the same noise-bent storm outline (`StormCell`), so a dark cloud overhead means rain.
-  - *Far clouds*: draws clouds out to 2560 blocks (Better Clouds stops at 4x render distance). Beyond `detailDistance` (1536) only every 2nd cloud is generated at twice the size, beyond twice that every 4th at four times; the boundary is dithered so there's no visible ring. Clouds write their own depth with a 16 km range so far clouds sort correctly instead of flickering through each other.
-  - *Storm look*: storms are built from normal cloud puffs, each nudged sideways so no faces line up. Thunderstorms grow puff columns up to ~240 blocks out of separate convective cells, with a flat anvil of puffs above; rain adds one puff and lowers the deck; storm clouds are darker and denser. Storm outlines are bent by noise so they aren't circles.
-  - *Weather systems*: a storm's clouds start building about 2.6 radii out, so the sky fills in gradually long before the rain; the sky and fog grey over with it (`ClientLevelMixin`, `FogRendererMixin`). Better Clouds' global darkening by the rain at the camera is toned down, so from inside a storm only the storm clouds are dark.
-  - *Cloud drift*: with local weather, Better Clouds' clouds drift with the storm wind instead of their own random path, so storms move smoothly with the clouds instead of being rebuilt as they travel.
-  - *Cumulus heaps* (`CloudGenContext.cumulusAt`): now and then, under clear to fair weather regions and away from storms, a big white cumulus heap (130-330 blocks tall, 150-400 wide) builds up on a flat, slightly grey base, on a 1.6 km grid where about one cell in six holds one; each grows and falls apart over about half a day and drifts with the regions. Setting `cumulusClouds`; `-Dlocalweather.cumulusTest=true` puts one in nearly every cell for testing.
-  - *High layer*: a second, flat cloud layer above the normal one that thickens around storms.
-  - How: the generator task's sampler and point creation are wrapped (`ChunkedGeneratorTaskMixin`, logic in `CloudGenContext`). Each cloud carries a size, darkness and flat flag packed into its y coordinate (`CloudCode`), which a text patch to Better Clouds' coverage and shading shaders decodes (`BetterCloudsShaderPatch`; if Better Clouds changes those shaders, the patch backs off and only coverage stays). Chunk culling uses vanilla's frustum with far boxes scaled towards the camera, since its far plane would otherwise hide far clouds. Better Clouds' chunk cache stays on and is cleared when storms change or the camera moves 512 blocks.
-- **Weather regions** (`weather/WeatherRegions`): between the storms the sky varies from clear (0) to overcast (1) in areas several km wide, a slow noise field over the world that drifts with the wind (`WeatherSavedData.regionX/Z`) and changes over about 1.5 days. Server and clients compute it the same way from the dimension's seed, the drift and the game time (synced in the payload, protocol 3). It sets the fair-weather cloud cover (clear: a few small clouds, fair: Better Clouds' usual cover, overcast: a closed deck), where storms form, a slight dimming of sky and daylight under overcast, and how much the sun, moon and stars are hidden (`LevelRendererMixin`). `/localweather here` shows the value.
-- Only overworld-like dimensions (sky light, no ceiling) are affected. The network channel is optional, so the mod falls back to vanilla weather when only one side has it.
+**Sky** (needs Better Clouds)
+- Each storm shows as a dark cloud mass where it rains, with tall towers and a flat anvil on thunderstorms.
+- Clouds are drawn much further than usual (2.5 km by default, up to 8 km), with less detail far away.
+- Rain shafts hang under heavy rain in the distance, grey haze fills the air under rain clouds, and fog closes in
+  while you stand in the rain.
+- Lightning lights up the clouds around it; far storms flicker, and their thunder arrives later from their direction.
+- Branching lightning bolts that strike exactly where the lightning lands.
+- Sunsets light the clouds, storms hide the sun, overcast skies hide the stars.
+- Now and then a big white cumulus heap builds up in fair weather.
 
-Cell types: `shower` (0.9-1.6 km radius), `rain` (2.6-4.8 km fronts), `thunderstorm` (1.4-2.4 km, lightning in the core, warm biomes only). At most two storms gather around a player, and each forms upwind at a distance scaled to its size.
+| | |
+|---|---|
+| ![Lightning close by](docs/images/bolt.jpg) | ![A cumulus heap in fair weather](docs/images/cumulus.jpg) |
 
-## Config and presets
+![A storm at sunset](docs/images/storm_sunset.jpg)
 
-Two config files, both editable in the mod list (Local Weather → Config). Presets fill in the values they cover when you pick them, in the screen or in the file (also while the game is closed); the values can still be tweaked afterwards. `CUSTOM` never changes anything.
+## Install
 
-- **Client** (`config/localweather-client.toml`), one `preset` (`DEFAULT`, `PERFORMANCE`, `CINEMATIC`, `VOXY_TECTONIC`): cloud resolution, no rain above the clouds, rain shafts (strength, distance), rain haze, rain fog, cloud cover, cloud height offset (used without a Local Weather server), far cloud and detail distance, storm towers and their height, storm darkness and its strength, thick rain clouds, the high layer, sky gloom, and how much of Better Clouds' global rain tint to keep.
-- **World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/localweather-server.toml`, which overrides it), two presets:
-  - `heightPreset` (`AUTO`, the default; `VANILLA` 192, `TECTONIC` +160, `TALL_TERRAIN` +320): cloud height and dry above the clouds. `AUTO` asks the world generator for the surface height on a 25x25 grid over ±7.7 km around spawn (no chunks generated, on a background thread) and puts the cloud base above most peaks and at least above the highest sample. It's saved per dimension and redone if the build height changes; `/localweather cloudheight` shows it, `/localweather cloudheight recompute` redoes it.
-  - `weatherPreset` (`DEFAULT`, `CALM`, `STORMY`, `HUGE_STORMS`): storm size, lifetime, count and frequency, shower and thunderstorm chance, wind speeds.
-  - `regions`: `weatherRegions` (on), `skyBalance` (`MOSTLY_FAIR`, `BALANCED`, `MOODY`), `stormsFollowWeather` (on), `biomeWeather` (off: wet biomes cloudier and stormier, dry ones clearer; affects where storms form). Client side: `overcastSky` and `cloudsHideSky` (both on).
+- **NeoForge**: Local Weather, and [Better Clouds](https://modrinth.com/mod/better-clouds) (1.13 or newer) for the cloud
+  effects.
+- **Fabric**: Local Weather, [Fabric API](https://modrinth.com/mod/fabric-api) and
+  [Forge Config API Port](https://modrinth.com/mod/forge-config-api-port); Better Clouds as above.
+  [Mod Menu](https://modrinth.com/mod/modmenu) opens the settings.
 
-For Voxy + Tectonic use the client preset `VOXY_TECTONIC` with `heightPreset = AUTO` and `weatherPreset = HUGE_STORMS`: clouds above the real mountains, drawn out to 6 km, 360-block storm towers, and 1.6x larger, longer storms.
+Install it on the **server and every client**. With only one side having it, that side falls back to vanilla weather.
+Better Clouds is client-only: without it the weather works, but the sky looks like vanilla's.
 
-**Cloud height is the world's.** The world's `cloudHeightOffset` is synced to every player, who draw their clouds there (unless they turn off `followServerCloudHeight`), and with `dryAboveClouds` the server treats everything above the cloud base as dry: no wetness, snow, cauldron filling or lightning.
+### Works with
 
-## Commands (op level 2)
+- **Voxy / Roxy, Distant Horizons**: use the client preset `VOXY_TECTONIC` for clouds and weather drawn out to 6 km.
+  Clouds and rain hide correctly behind far Voxy terrain.
+- **Tectonic** and other tall terrain: the world setting `heightPreset = AUTO` (the default) puts the clouds above the
+  real mountains.
+- **Sodium, Iris, Sodium Extra, Particle Rain**: tested alongside. Shader packs are not tested yet; packs that draw
+  their own sky or fog may hide some of the effects.
+
+## Settings
+
+Both files can be edited in the game: mod list → Local Weather → Config. Every file has a **preset**; picking one sets
+everything to the preset's values, and each setting can still be changed afterwards (`CUSTOM` never changes anything).
+
+**Client** (`config/localweather-client.toml`): how it looks. Presets `DEFAULT`, `PERFORMANCE`, `CINEMATIC`,
+`VOXY_TECTONIC`.
+
+| Section | Settings |
+|---|---|
+| clouds | cloud cover (without weather regions), far clouds, resolution, distance, detail distance, high layer, cumulus heaps |
+| cloudHeight | follow the server's cloud height, own offset (for servers without Local Weather) |
+| storms | storm towers and their height, storm darkness and its strength, thick rain clouds |
+| rain | no rain above the clouds, rain shafts (strength, distance), rain haze, rain fog |
+| lightning | flashes in the clouds, lightning bolts, distant thunder |
+| sky | sky gloom under storms, Better Clouds' rain tint, overcast sky, clouds hiding the sun and stars |
+
+Files from before 0.1.21 are moved to the new sections automatically, keeping their values (the old file stays as
+`localweather-client.toml.old`).
+
+**World** (`config/localweather-server.toml`, or per world in `<world>/serverconfig/`):
+- `heightPreset` (`AUTO`, `VANILLA`, `TECTONIC`, `TALL_TERRAIN`): where the clouds sit, and whether it stays dry above them.
+  `AUTO` looks at the world's terrain around spawn and puts the clouds above most peaks.
+- `weatherPreset` (`DEFAULT`, `CALM`, `STORMY`, `HUGE_STORMS`): storm size, lifetime, count, frequency and wind.
+- `regions`: weather regions on or off, the sky balance (`MOSTLY_FAIR`, `BALANCED`, `MOODY`), storms following the
+  regions, and (off by default) biomes making it wetter or drier.
+
+The cloud height is the world's: players see the clouds where the server's rain starts.
+
+## Commands
+
+For operators (level 2):
 
 ```
-/localweather list                    cells in this dimension, nearest first
-/localweather here                    rain and thunder at your position
-/localweather spawn <type> [radius]   spawn a cell centred on you
-/localweather clear                   remove all cells
+/localweather list                    storms in this dimension, nearest first
+/localweather here                    rain, thunder and weather region where you stand
+/localweather spawn <type> [radius]   a storm (shower, rain, thunderstorm) centred on you
+/localweather clear                   remove all storms
+/localweather cloudheight [recompute] where the clouds sit and why
 ```
 
-## Develop
+## Known issues
 
-`./gradlew build` builds `neoforge/build/libs/localweather-neoforge-<version>.jar` and `fabric/build/libs/localweather-fabric-<version>.jar`. The NeoForge runs below are `:neoforge:runClient` etc.; the Fabric client takes the same switches as `:fabric:runClient` and plays in `run-fabric/` (servers in `run-fabric-server/`), with Better Clouds, YACL and Mod Menu.
+- With Voxy, far terrain shows flickering horizontal bands while walking. That is Voxy with view bobbing, not this mod:
+  turn off View Bobbing.
+- Only overworld-like dimensions (with sky light and no ceiling) get local weather.
 
-```
-./gradlew build
-./gradlew :neoforge:runClient           # with Better Clouds + YACL from Modrinth
-./gradlew :neoforge:runClient -PquickPlay="New World"   # straight into a world
-./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene   # storms around you, screenshots to run/screenshots, then quits
-./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=inside   # same, standing inside a moving storm
-./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=above    # same storms, seen from high above the clouds
-./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=ground   # same storms, standing on the ground
-./gradlew :neoforge:runClient -PquickPlay="New World" -PdevScene=strafe   # world's own weather; walks left/right, a frame per tick
-python tools/flicker.py <frames> <out> [<reference frames>] [--region x0 y0 x1 y1]   # finds flicker in those frames
-```
+## Building and contributing
 
-Debugging switches for `runClient` (both loaders): `-PnoShaderPatch` (leave Better Clouds' shaders alone, to compare against), `-PdebugOcclusion` (paint each cloud pixel by how it was tested against terrain: blue no terrain, green near terrain, cyan LOD terrain behind the cloud, red hidden, yellow/magenta no usable LOD depth), `-PstrafeSpeed=0` (strafe scene standing still). `-Dlocalweather.lightningTest=true` (e.g. through `JAVA_TOOL_OPTIONS`, for autoshot) makes thunderstorms flash 8x as often with a visible bolt every time. The strafe scene also saves Voxy's depth texture to `run/screenshots/lod_depth.png`.
-
-```
-./gradlew :neoforge:runGameTestServer   # gametest/LocalWeatherTests
-./gradlew :fabric:runGametest            # the same tests on Fabric
-```
-
-On NeoForge, before every client launch (Gradle or IDE), `installClientMods` copies Better Clouds and YACL from Modrinth into `run/mods`. Better Clouds is client-only and crashes servers, so the server and gametest runs use `run-server/` instead. On Fabric, Loom puts them on the client's dev classpath and Fabric skips client-only mods on servers by itself. Voxy has no Fabric 1.21.1 release on Modrinth, so its depth hookup only works through Roxy on NeoForge. Versions are in `gradle.properties`.
-
-## Next
-
-1. Rain shafts hidden properly behind far Voxy terrain (Voxy depth, as the clouds do).
-2. Datapack biome weather profiles, season-mod hooks.
+See [docs/DEVELOPING.md](docs/DEVELOPING.md).

@@ -180,7 +180,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
      * is the dimension's cloud height plus the configured offset, so it matches where Better Clouds draws them.
      */
     private static float belowCloudsAt(Entity camera) {
-        if (!LocalWeatherClientConfig.SPEC.isLoaded() || !LocalWeatherClientConfig.NO_RAIN_ABOVE_CLOUDS.get()) return 1.0F;
+        if (!ClientSettings.get().noRainAboveClouds()) return 1.0F;
         double base = cloudBase(camera.level());
         if (Double.isNaN(base)) return 1.0F;
         double t = Mth.clamp((camera.getEyeY() - (base - 8.0)) / 32.0, 0.0, 1.0);
@@ -243,9 +243,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
      * with local weather (so everyone sees the same clouds the weather follows), otherwise the client's own.
      */
     public int cloudHeightOffset() {
-        if (!LocalWeatherClientConfig.SPEC.isLoaded()) return active ? serverCloudHeightOffset : 0;
-        boolean follow = LocalWeatherClientConfig.FOLLOW_SERVER_CLOUD_HEIGHT.get();
-        return active && follow ? serverCloudHeightOffset : LocalWeatherClientConfig.CLOUD_HEIGHT_OFFSET.get();
+        ClientSettings settings = ClientSettings.get();
+        return active && settings.followServerCloudHeight() ? serverCloudHeightOffset : settings.cloudHeightOffset();
     }
 
     public boolean belowClouds() {
@@ -254,8 +253,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     /** How far fog closes in around the camera because of rain, 0..1 (rain at the camera times the setting). */
     public float rainFog(float partialTick) {
-        if (!active || !LocalWeatherClientConfig.SPEC.isLoaded()) return 0.0F;
-        return LocalWeatherClientConfig.RAIN_FOG.get().floatValue() * Mth.lerp(partialTick, oRain, rain);
+        if (!active) return 0.0F;
+        return (float) ClientSettings.get().rainFog() * Mth.lerp(partialTick, oRain, rain);
     }
 
     /** The weather regions as synced and carried by the wind since (OFF without them). */
@@ -270,7 +269,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     }
 
     private static boolean overcastSky() {
-        return !LocalWeatherClientConfig.SPEC.isLoaded() || LocalWeatherClientConfig.OVERCAST_SKY.get();
+        return ClientSettings.get().overcastSky();
     }
 
     /** How much overcast regions dim daylight, 0 to 0.15. */
@@ -281,7 +280,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
 
     /** How much thick cloud hides the sun, moon and stars, 0 to 0.9. */
     public float skyHidden(float partialTick) {
-        if (!active || (LocalWeatherClientConfig.SPEC.isLoaded() && !LocalWeatherClientConfig.CLOUDS_HIDE_SKY.get())) return 0.0F;
+        if (!active || !ClientSettings.get().cloudsHideSky()) return 0.0F;
         return 0.9F * smoothstep(0.5F, 0.95F, Mth.lerp(partialTick, oOvercast, overcast)) * belowClouds;
     }
 
@@ -303,7 +302,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     /** Overcast around the camera, 0..1, or 0 without local weather. */
     public float gloom(float partialTick) {
         if (!active) return 0.0F;
-        float strength = LocalWeatherClientConfig.SPEC.isLoaded() ? LocalWeatherClientConfig.SKY_GLOOM.get().floatValue() : 1.0F;
+        float strength = (float) ClientSettings.get().skyGloom();
         return strength * Mth.lerp(partialTick, oGloom, gloom);
     }
 

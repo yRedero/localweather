@@ -11,6 +11,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import redero.localweather.DevFlags;
 import redero.localweather.weather.StormCell;
 
 /**
@@ -62,7 +63,7 @@ public final class LightningFlashes {
 
     /** A glow centred on (x, z) with the given radius; flicker is picked per flash. */
     /** Dev only (-Dlocalweather.lightningTest=true): flashes 8x as often, and every far one shows a bolt. */
-    private static final boolean TEST = Boolean.getBoolean("localweather.lightningTest");
+    private static final boolean TEST = DevFlags.LIGHTNING_TEST;
     /** A third of the in-cloud flashes further than this also show a bolt to the ground. */
     private static final double BOLT_MIN_DISTANCE = 200.0;
     private static final float BOLT_CHANCE = 0.35F;
@@ -112,7 +113,8 @@ public final class LightningFlashes {
             double x = cell.centerX(aheadTicks) + Math.cos(angle) * distance;
             double z = cell.centerZ(aheadTicks) + Math.sin(angle) * distance;
             double fromCamera = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
-            boolean ground = fromCamera > BOLT_MIN_DISTANCE && (TEST || RANDOM.nextFloat() < BOLT_CHANCE);
+            boolean ground = ClientSettings.get().lightningBolts() && fromCamera > BOLT_MIN_DISTANCE
+                    && (TEST || RANDOM.nextFloat() < BOLT_CHANCE);
             add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat(), ground, Double.NaN);
             thunderFrom(x, z, camera);
         }
@@ -123,7 +125,7 @@ public final class LightningFlashes {
      * these bolts where it strikes (vanilla's own is hidden, see LightningBoltRendererMixin).
      */
     public static void bolt(double x, double y, double z) {
-        if (enabled()) add(x, z, 260.0F, 1.3F, true, y);
+        if (enabled()) add(x, z, 260.0F, 1.3F, ClientSettings.get().lightningBolts(), y);
     }
 
     private static void add(double x, double z, float radius, float strength, boolean ground, double groundY) {
@@ -143,7 +145,7 @@ public final class LightningFlashes {
 
     /** Thunder rolls in after the flash from its direction, later and quieter the further away it is. */
     private static void thunderFrom(double x, double z, Entity camera) {
-        if (!LocalWeatherClientConfig.SPEC.isLoaded() || !LocalWeatherClientConfig.DISTANT_THUNDER.get()) return;
+        if (!ClientSettings.get().distantThunder()) return;
         double distance = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
         if (distance > THUNDER_RANGE) return;
         float volume = (float) (1.0 - distance / THUNDER_RANGE) * 0.9F;
@@ -179,6 +181,6 @@ public final class LightningFlashes {
     }
 
     static boolean enabled() {
-        return !LocalWeatherClientConfig.SPEC.isLoaded() || LocalWeatherClientConfig.LIGHTNING_FLASHES.get();
+        return ClientSettings.get().lightningFlashes();
     }
 }

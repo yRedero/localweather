@@ -198,29 +198,41 @@ public final class LocalWeatherServerConfig {
         return SPEC.isLoaded() && BIOME_WEATHER.get();
     }
 
-    // Built on demand: the config values don't exist yet while the enums are first loaded.
+    // Built on demand: the config values don't exist yet while the enums are first loaded. A preset resets the
+    // settings it covers to their defaults, then applies its own changes from those.
 
     private static Map<ModConfigSpec.ConfigValue<?>, Object> heightValues(HeightPreset preset) {
-        return switch (preset) {
-            case AUTO -> Map.of(DRY_ABOVE_CLOUDS, true);
-            case VANILLA -> Map.of(CLOUD_HEIGHT_OFFSET, 0, DRY_ABOVE_CLOUDS, true);
-            case TECTONIC -> Map.of(CLOUD_HEIGHT_OFFSET, 160, DRY_ABOVE_CLOUDS, true);
-            case TALL_TERRAIN -> Map.of(CLOUD_HEIGHT_OFFSET, 320, DRY_ABOVE_CLOUDS, true);
-            case CUSTOM -> Map.of();
-        };
+        Map<ModConfigSpec.ConfigValue<?>, Object> values = defaults(CLOUD_HEIGHT_OFFSET, DRY_ABOVE_CLOUDS);
+        switch (preset) {
+            case TECTONIC -> values.put(CLOUD_HEIGHT_OFFSET, 160);
+            case TALL_TERRAIN -> values.put(CLOUD_HEIGHT_OFFSET, 320);
+            case CUSTOM -> values.clear();
+            default -> {
+            }
+        }
+        return values;
     }
 
     private static Map<ModConfigSpec.ConfigValue<?>, Object> weatherValues(WeatherPreset preset) {
-        return switch (preset) {
-            case DEFAULT -> Map.of(STORM_SIZE, 1.0, STORM_LIFETIME, 1.0, MAX_STORMS_NEARBY, 2, STORM_FREQUENCY, 1.0,
-                    SHOWER_CHANCE, 0.35, THUNDERSTORM_CHANCE, 0.15, WIND_MIN, 0.6, WIND_MAX, 2.4);
-            case CALM -> Map.of(STORM_SIZE, 0.8, STORM_LIFETIME, 0.8, MAX_STORMS_NEARBY, 1, STORM_FREQUENCY, 0.5,
-                    SHOWER_CHANCE, 0.5, THUNDERSTORM_CHANCE, 0.05, WIND_MIN, 0.4, WIND_MAX, 1.6);
-            case STORMY -> Map.of(STORM_SIZE, 1.1, STORM_LIFETIME, 1.0, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 2.0,
-                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.35, WIND_MIN, 1.0, WIND_MAX, 3.5);
-            case HUGE_STORMS -> Map.of(STORM_SIZE, 1.6, STORM_LIFETIME, 1.5, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 1.0,
-                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.2, WIND_MIN, 1.0, WIND_MAX, 3.0);
-            case CUSTOM -> Map.of();
-        };
+        Map<ModConfigSpec.ConfigValue<?>, Object> values = defaults(STORM_SIZE, STORM_LIFETIME, MAX_STORMS_NEARBY,
+                STORM_FREQUENCY, SHOWER_CHANCE, THUNDERSTORM_CHANCE, WIND_MIN, WIND_MAX);
+        switch (preset) {
+            case CALM -> values.putAll(Map.of(STORM_SIZE, 0.8, STORM_LIFETIME, 0.8, MAX_STORMS_NEARBY, 1, STORM_FREQUENCY, 0.5,
+                    SHOWER_CHANCE, 0.5, THUNDERSTORM_CHANCE, 0.05, WIND_MIN, 0.4, WIND_MAX, 1.6));
+            case STORMY -> values.putAll(Map.of(STORM_SIZE, 1.1, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 2.0,
+                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.35, WIND_MIN, 1.0, WIND_MAX, 3.5));
+            case HUGE_STORMS -> values.putAll(Map.of(STORM_SIZE, 1.6, STORM_LIFETIME, 1.5, MAX_STORMS_NEARBY, 3,
+                    SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.2, WIND_MIN, 1.0, WIND_MAX, 3.0));
+            case CUSTOM -> values.clear();
+            default -> {
+            }
+        }
+        return values;
+    }
+
+    private static Map<ModConfigSpec.ConfigValue<?>, Object> defaults(ModConfigSpec.ConfigValue<?>... settings) {
+        Map<ModConfigSpec.ConfigValue<?>, Object> values = new java.util.LinkedHashMap<>();
+        for (ModConfigSpec.ConfigValue<?> setting : settings) values.put(setting, setting.getDefault());
+        return values;
     }
 }

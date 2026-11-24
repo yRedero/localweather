@@ -7,7 +7,7 @@ import com.qendolin.betterclouds.config.Config;
 
 import net.minecraft.util.Mth;
 import redero.localweather.client.ClientWeather;
-import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.client.ClientSettings;
 import redero.localweather.weather.StormCell;
 
 /**
@@ -44,7 +44,7 @@ public final class BetterCloudsCompat {
         int doubling = options.bottomSparsity > 0.0F ? 2 : 1;
         if (!farCloudsActive()) return (original > 0 ? original : 128) * doubling;
         double distance = options.blockDistance();
-        double detail = Math.min(LocalWeatherClientConfig.DETAIL_DISTANCE.get(), distance);
+        double detail = Math.min(ClientSettings.get().detailDistance(), distance);
         double coarse = Math.min(2.0 * detail, distance);
         double spacing = options.spacing;
         double points = Math.PI / (spacing * spacing)
@@ -56,14 +56,14 @@ public final class BetterCloudsCompat {
 
     /** True when clouds are generated past Better Clouds' own distance (see ConfigMixin). */
     public static boolean farCloudsActive() {
-        return LocalWeatherClientConfig.SPEC.isLoaded() && LocalWeatherClientConfig.FAR_CLOUDS.get()
+        return ClientSettings.get().farClouds()
                 && BetterCloudsShaderPatch.active();
     }
 
     /** Called once per frame from ChunkedGenerator#update, on the render thread. */
     public static boolean fieldChanged(double cameraX, double cameraZ, double originX, double originZ, int blockDistance) {
         // Settings and the shader patch change geometry too.
-        long signature = 31L * LocalWeatherClientConfig.geometryHash() + Boolean.hashCode(BetterCloudsShaderPatch.active());
+        long signature = 31L * ClientSettings.get().geometryHash() + Boolean.hashCode(BetterCloudsShaderPatch.active());
         if (farCloudsActive()) {
             signature = 31 * signature + Mth.floor(cameraX / DETAIL_REFRESH);
             signature = 31 * signature + Mth.floor(cameraZ / DETAIL_REFRESH);

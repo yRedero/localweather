@@ -7,6 +7,7 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.Level;
+import redero.localweather.DevFlags;
 import redero.localweather.LocalWeather;
 import redero.localweather.weather.CellType;
 
@@ -15,7 +16,7 @@ import redero.localweather.weather.CellType;
  * around the joining player and freezes time and weather, so the client can take comparable screenshots.
  */
 public final class DevScene {
-    private static final String MODE = System.getProperty("localweather.devscene");
+    private static final String MODE = DevFlags.DEV_SCENE;
     public static final boolean ENABLED = MODE != null;
     /** -PdevScene=inside: stand inside a storm, with the weather running instead of frozen. */
     public static final boolean INSIDE = "inside".equals(MODE);

@@ -9,7 +9,7 @@ import com.qendolin.betterclouds.clouds.EffectTintProvider;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import redero.localweather.client.ClientWeather;
-import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.client.ClientSettings;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 
 /**
@@ -33,11 +33,11 @@ public abstract class EffectTintProviderMixin {
     }
 
     private static float keep() {
-        return LocalWeatherClientConfig.GLOBAL_TINT.get().floatValue();
+        return (float) ClientSettings.get().globalRainTint();
     }
 
     private static boolean perCloudDarkness() {
         return ClientWeather.INSTANCE.active() && BetterCloudsShaderPatch.active()
-                && LocalWeatherClientConfig.SPEC.isLoaded() && LocalWeatherClientConfig.STORM_DARKNESS.get();
+                && ClientSettings.get().stormDarkness();
     }
 }

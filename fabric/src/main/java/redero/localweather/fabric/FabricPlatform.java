@@ -18,6 +18,11 @@ public final class FabricPlatform implements Platform {
     }
 
     @Override
+    public java.nio.file.Path configDir() {
+        return FabricLoader.getInstance().getConfigDir();
+    }
+
+    @Override
     public void send(ServerPlayer player, CustomPacketPayload payload) {
         ServerPlayNetworking.send(player, payload);
     }

@@ -22,4 +22,14 @@ public final class FabricGameTests {
     public void cloudsCoverTheRain(GameTestHelper helper) {
         LocalWeatherTests.cloudsCoverTheRain(helper);
     }
+
+    @GameTest(template = EMPTY)
+    public void presetsAreValid(GameTestHelper helper) {
+        LocalWeatherTests.presetsAreValid(helper);
+    }
+
+    @GameTest(template = EMPTY)
+    public void configMigration(GameTestHelper helper) {
+        LocalWeatherTests.configMigration(helper);
+    }
 }

@@ -20,6 +20,7 @@ import redero.localweather.server.LocalWeatherServerConfig;
 @Mod(LocalWeather.MODID)
 public class LocalWeatherNeoForge {
     public LocalWeatherNeoForge(IEventBus modBus, ModContainer container) {
+        LocalWeather.migrateConfigs();
         container.registerConfig(ModConfig.Type.CLIENT, LocalWeatherClientConfig.SPEC);
         container.registerConfig(ModConfig.Type.SERVER, LocalWeatherServerConfig.SPEC);
         modBus.addListener((ModConfigEvent.Loading event) -> LocalWeather.onConfigLoaded(event.getConfig()));

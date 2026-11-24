@@ -17,4 +17,7 @@ public interface Platform {
     boolean canSend(ServerPlayer player, CustomPacketPayload.Type<?> type);
 
     void send(ServerPlayer player, CustomPacketPayload payload);
+
+    /** The game's config folder. */
+    java.nio.file.Path configDir();
 }

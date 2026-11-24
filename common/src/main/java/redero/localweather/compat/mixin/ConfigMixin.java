@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.qendolin.betterclouds.config.Config;
 
-import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.client.ClientSettings;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 
 @Mixin(value = Config.class, remap = false)
@@ -19,6 +19,6 @@ public abstract class ConfigMixin {
     @ModifyReturnValue(method = "blockDistance", at = @At("RETURN"))
     private int localweather$farClouds(int distance) {
         if (!BetterCloudsCompat.farCloudsActive()) return distance;
-        return Math.max(distance, LocalWeatherClientConfig.CLOUD_DISTANCE.get());
+        return Math.max(distance, ClientSettings.get().cloudDistance());
     }
 }

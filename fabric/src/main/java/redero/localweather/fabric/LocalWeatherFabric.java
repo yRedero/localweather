@@ -21,6 +21,7 @@ public final class LocalWeatherFabric implements ModInitializer {
         // Forge Config API Port gives Fabric the same config files (and per world serverconfig/) as NeoForge.
         NeoForgeModConfigEvents.loading(LocalWeather.MODID).register(LocalWeather::onConfigLoaded);
         NeoForgeModConfigEvents.reloading(LocalWeather.MODID).register(LocalWeather::onConfigLoaded);
+        LocalWeather.migrateConfigs();
         NeoForgeConfigRegistry.INSTANCE.register(LocalWeather.MODID, ModConfig.Type.CLIENT, LocalWeatherClientConfig.SPEC);
         NeoForgeConfigRegistry.INSTANCE.register(LocalWeather.MODID, ModConfig.Type.SERVER, LocalWeatherServerConfig.SPEC);
 

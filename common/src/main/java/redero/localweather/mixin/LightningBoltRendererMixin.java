@@ -10,7 +10,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.LightningBoltRenderer;
 import net.minecraft.world.entity.LightningBolt;
-import redero.localweather.client.RainShafts;
+import redero.localweather.client.FarWeather;
 
 /** Real lightning is drawn as Local Weather's bolt (see LightningFlashes#bolt), so vanilla's is skipped then. */
 @Mixin(LightningBoltRenderer.class)
@@ -19,6 +19,6 @@ public abstract class LightningBoltRendererMixin {
             at = @At("HEAD"), cancellable = true)
     private void localweather$ownBolt(LightningBolt bolt, float yaw, float partialTick, PoseStack poseStack,
                                       MultiBufferSource buffers, int light, CallbackInfo ci) {
-        if (RainShafts.drawsBolts()) ci.cancel();
+        if (FarWeather.drawsBolts()) ci.cancel();
     }
 }

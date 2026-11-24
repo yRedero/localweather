@@ -57,12 +57,12 @@ public final class RainHaze {
     }
 
     private static boolean enabled() {
-        return LocalWeatherClientConfig.SPEC.isLoaded() && LocalWeatherClientConfig.RAIN_HAZE.get() > 0.0
+        return ClientSettings.get().rainHaze() > 0.0
                 && ClientWeather.INSTANCE.active();
     }
 
     static double distance() {
-        return Math.min(LocalWeatherClientConfig.RAIN_SHAFT_DISTANCE.get(), LocalWeatherClientConfig.CLOUD_DISTANCE.get());
+        return ClientSettings.get().weatherDistance();
     }
 
     /** Client tick: rewrites the rain map around the camera now and then. */
@@ -146,7 +146,7 @@ public final class RainHaze {
         program.safeGetUniform("MapSize").set((float) mapSize);
         program.safeGetUniform("MaxDist").set((float) distance());
         program.safeGetUniform("HazeColor").set(red, green, blue);
-        program.safeGetUniform("Density").set(DENSITY * LocalWeatherClientConfig.RAIN_HAZE.get().floatValue());
+        program.safeGetUniform("Density").set(DENSITY * (float) ClientSettings.get().rainHaze());
         program.safeGetUniform("Fade").set(fade);
 
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);

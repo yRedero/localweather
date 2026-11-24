@@ -22,7 +22,7 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import redero.localweather.LocalWeather;
 import redero.localweather.client.LocalWeatherClient;
 import redero.localweather.client.RainHaze;
-import redero.localweather.client.RainShafts;
+import redero.localweather.client.FarWeather;
 
 @Mod(value = LocalWeather.MODID, dist = Dist.CLIENT)
 public class LocalWeatherNeoForgeClient {
@@ -30,8 +30,8 @@ public class LocalWeatherNeoForgeClient {
         LocalWeatherClient.init();
         modBus.addListener((RegisterShadersEvent event) -> {
             try {
-                event.registerShader(new ShaderInstance(event.getResourceProvider(), RainShafts.SHADER,
-                        DefaultVertexFormat.POSITION_COLOR), RainShafts::setShader);
+                event.registerShader(new ShaderInstance(event.getResourceProvider(), FarWeather.SHADER,
+                        DefaultVertexFormat.POSITION_COLOR), FarWeather::setShader);
                 event.registerShader(new ShaderInstance(event.getResourceProvider(), RainHaze.SHADER,
                         DefaultVertexFormat.POSITION), RainHaze::setShader);
             } catch (IOException e) {

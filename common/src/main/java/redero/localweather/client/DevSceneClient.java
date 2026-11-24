@@ -3,6 +3,7 @@ package redero.localweather.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.player.LocalPlayer;
+import redero.localweather.DevFlags;
 import redero.localweather.platform.Platform;
 import redero.localweather.LocalWeather;
 import redero.localweather.client.betterclouds.BetterCloudsDev;
@@ -21,8 +22,11 @@ final class DevSceneClient {
             {"south_near_thunderstorm", 0.0F, -12.0F},
             {"up", -60.0F, -70.0F},
     };
-    /** Time for Better Clouds to finish generating before the first shot. */
-    private static final int WARMUP_TICKS = 300;
+    /**
+     * Time for Better Clouds to finish generating before the first shot. -Pwarmup=<ticks> waits longer, e.g. for
+     * Voxy to build its far terrain in a fresh copy of a world.
+     */
+    private static final int WARMUP_TICKS = DevFlags.WARMUP_TICKS;
     private static final int TICKS_PER_VIEW = 100;
 
     private static int ticks = -1;
@@ -89,7 +93,7 @@ final class DevSceneClient {
 
     /** Frames saved while strafing: 6 blocks left, 12 right, 6 back, at walking speed. */
     private static final int STRAFE_FRAMES = 120;
-    private static final double STRAFE_SPEED = Double.parseDouble(System.getProperty("localweather.strafeSpeed", "0.2"));
+    private static final double STRAFE_SPEED = DevFlags.STRAFE_SPEED;
     private static double baseX, baseY, baseZ;
 
     private static void strafe(Minecraft mc, LocalPlayer player, int t) {

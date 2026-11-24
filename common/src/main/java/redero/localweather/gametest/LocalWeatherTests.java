@@ -4,6 +4,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.ModConfigSpec;
+import redero.localweather.client.ClientConfigMigration;
+import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.server.WeatherSavedData;
 import redero.localweather.server.WeatherSimulator;
 import redero.localweather.weather.CellType;
@@ -84,6 +87,43 @@ public final class LocalWeatherTests {
             }
         }
         helper.assertTrue(raining > 100, "too few raining samples: " + raining);
+        helper.succeed();
+    }
+
+    /** Every client preset changes only settings that exist, and only to values within their ranges. */
+    public static void presetsAreValid(GameTestHelper helper) {
+        var settings = LocalWeatherClientConfig.all();
+        for (LocalWeatherClientConfig.Preset preset : LocalWeatherClientConfig.Preset.values()) {
+            LocalWeatherClientConfig.changes(preset).forEach((setting, value) -> {
+                helper.assertTrue(settings.contains(setting), preset + " changes an unknown setting " + setting.getPath());
+                ModConfigSpec.ValueSpec spec = LocalWeatherClientConfig.SPEC.getSpec().get(setting.getPath());
+                helper.assertTrue(spec.test(value), preset + " sets " + setting.getPath() + " to " + value + ", out of range");
+            });
+        }
+        helper.succeed();
+    }
+
+    /** An old client config file is moved to the new sections with its values; a current one is left alone. */
+    public static void configMigration(GameTestHelper helper) {
+        java.util.List<String> old = java.util.List.of(
+                "preset = \"CUSTOM\"",
+                "[clouds]",
+                "\tcloudCover = 0.7",
+                "\tcloudHeightOffset = 160",
+                "[storms]",
+                "\tlightningFlashes = false",
+                "\ttowerHeight = 300",
+                "[highLayer]",
+                "\thighLayer = false");
+        String moved = ClientConfigMigration.migrate(old);
+        helper.assertTrue(moved != null, "an old file wasn't migrated");
+        helper.assertTrue(moved.startsWith("preset = \"CUSTOM\""), "the preset was lost: " + moved);
+        helper.assertTrue(moved.contains("[cloudHeight]\n\tcloudHeightOffset = 160"), "cloudHeightOffset wasn't moved: " + moved);
+        helper.assertTrue(moved.contains("[lightning]\n\tlightningFlashes = false"), "lightningFlashes wasn't moved: " + moved);
+        helper.assertTrue(moved.contains("\thighLayer = false"), "highLayer was lost: " + moved);
+        helper.assertTrue(moved.contains("\ttowerHeight = 300") && moved.contains("\tcloudCover = 0.7"), "values changed: " + moved);
+        helper.assertTrue(ClientConfigMigration.migrate(java.util.Arrays.asList(moved.split("\n"))) == null,
+                "a migrated file was migrated again");
         helper.succeed();
     }
 }

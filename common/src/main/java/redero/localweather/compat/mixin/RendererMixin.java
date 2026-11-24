@@ -28,7 +28,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LightningFlashes;
-import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.client.ClientSettings;
 import redero.localweather.client.betterclouds.BetterCloudsCompat;
 import redero.localweather.client.betterclouds.BetterCloudsShaderPatch;
 import redero.localweather.client.betterclouds.VoxyDepth;
@@ -111,8 +111,7 @@ public abstract class RendererMixin {
     /** Draws clouds at a lower resolution when configured: their cost is mostly per pixel. */
     @ModifyReturnValue(method = {"scaledFramebufferWidth", "scaledFramebufferHeight"}, at = @At("RETURN"))
     private int localweather$cloudResolution(int size) {
-        if (!LocalWeatherClientConfig.SPEC.isLoaded()) return size;
-        return Math.max(1, (int) (size * LocalWeatherClientConfig.CLOUD_RESOLUTION.get()));
+        return Math.max(1, (int) (size * ClientSettings.get().cloudResolution()));
     }
 
     /** Lifts every cloud by the configured offset, e.g. above Tectonic's mountains. */

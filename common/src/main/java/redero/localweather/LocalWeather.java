@@ -6,7 +6,9 @@ import com.mojang.logging.LogUtils;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.fml.config.ModConfig;
+import redero.localweather.client.ClientConfigMigration;
 import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.platform.Platform;
 import redero.localweather.server.DevScene;
 import redero.localweather.server.LocalWeatherServerConfig;
 import redero.localweather.server.WeatherSimulator;
@@ -19,6 +21,11 @@ public final class LocalWeather {
     public static final String PROTOCOL = "3";
 
     private LocalWeather() {
+    }
+
+    /** Before the configs are registered: moves settings from older client config files to their new sections. */
+    public static void migrateConfigs() {
+        ClientConfigMigration.migrate(Platform.INSTANCE.configDir().resolve(MODID + "-client.toml"));
     }
 
     /** A changed preset (config screen, file edit, or edited while the game was closed) fills in its values. */

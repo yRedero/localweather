@@ -21,6 +21,11 @@ public final class NeoForgePlatform implements Platform {
     }
 
     @Override
+    public java.nio.file.Path configDir() {
+        return net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get();
+    }
+
+    @Override
     public void send(ServerPlayer player, CustomPacketPayload payload) {
         PacketDistributor.sendToPlayer(player, payload);
     }

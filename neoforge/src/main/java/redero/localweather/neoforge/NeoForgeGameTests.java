@@ -28,4 +28,14 @@ public final class NeoForgeGameTests {
     public static void cloudsCoverTheRain(GameTestHelper helper) {
         LocalWeatherTests.cloudsCoverTheRain(helper);
     }
+
+    @GameTest(template = "empty")
+    public static void presetsAreValid(GameTestHelper helper) {
+        LocalWeatherTests.presetsAreValid(helper);
+    }
+
+    @GameTest(template = "empty")
+    public static void configMigration(GameTestHelper helper) {
+        LocalWeatherTests.configMigration(helper);
+    }
 }

@@ -8,6 +8,7 @@ import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
+import redero.localweather.DevFlags;
 import redero.localweather.LocalWeather;
 
 /**
@@ -22,7 +23,7 @@ import redero.localweather.LocalWeather;
  */
 public final class BetterCloudsShaderPatch {
     /** Dev only (-Dlocalweather.debugOcclusion=true): show how each cloud pixel was tested against terrain. */
-    private static final String DEBUG_OCCLUSION = Boolean.toString(Boolean.getBoolean("localweather.debugOcclusion"));
+    private static final String DEBUG_OCCLUSION = Boolean.toString(DevFlags.DEBUG_OCCLUSION);
     private static final String COVERAGE_VSH = "shaders/core/betterclouds_coverage.vsh";
     private static final String COVERAGE_FSH = "shaders/core/betterclouds_coverage.fsh";
     private static final String SHADING_FSH = "shaders/core/betterclouds_shading.fsh";
@@ -263,7 +264,7 @@ public final class BetterCloudsShaderPatch {
 
     private static volatile boolean active;
     /** Dev only (-Dlocalweather.noShaderPatch=true): leave Better Clouds' shaders alone, to compare against. */
-    private static final boolean DISABLED = Boolean.getBoolean("localweather.noShaderPatch");
+    private static final boolean DISABLED = DevFlags.NO_SHADER_PATCH;
 
     private BetterCloudsShaderPatch() {
     }

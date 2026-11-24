@@ -16,7 +16,7 @@ import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.synth.SimplexNoise;
 import net.minecraft.world.phys.AABB;
 import redero.localweather.client.ClientWeather;
-import redero.localweather.client.LocalWeatherClientConfig;
+import redero.localweather.client.ClientSettings;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
 import redero.localweather.weather.WeatherRegions;
@@ -48,7 +48,7 @@ public final class CloudGenContext implements WeatherView {
     private static final double LOD_BLEND = 300.0;
 
     private static final SimplexNoise HIGH_NOISE = new SimplexNoise(new LegacyRandomSource(0x4C57L));
-    private static final SimplexNoise STORM_NOISE = new SimplexNoise(new LegacyRandomSource(0x5704L));
+    static final SimplexNoise STORM_NOISE = new SimplexNoise(new LegacyRandomSource(0x5704L));
 
     private final List<StormCell> cells;
     private final int aheadTicks;
@@ -60,7 +60,7 @@ public final class CloudGenContext implements WeatherView {
     private final float spacing, sizeXZ, sizeY, yOffset;
     private final int blockDistance, detailDistance;
     private final boolean encode, lod, towers, darkness, thick, high;
-    /** Rare big fair-weather cumulus heaps (see cumulusAt). */
+    /** Rare big fair-weather cumulus heaps (see CumulusHeaps). */
     private final boolean cumulus;
     /** Height of the cumulus heap over the current sample, 0 where there is none. */
     private float cumulusHeight;
@@ -110,17 +110,18 @@ public final class CloudGenContext implements WeatherView {
 
         // Without the shader patch, sizes and darkness can't be drawn: keep Better Clouds' plain look.
         this.encode = BetterCloudsShaderPatch.active();
-        this.lod = encode && LocalWeatherClientConfig.FAR_CLOUDS.get();
-        this.detailDistance = LocalWeatherClientConfig.DETAIL_DISTANCE.get();
-        this.towers = encode && LocalWeatherClientConfig.STORM_TOWERS.get();
-        this.cumulus = encode && LocalWeatherClientConfig.CUMULUS_CLOUDS.get();
-        this.darkness = encode && LocalWeatherClientConfig.STORM_DARKNESS.get();
-        this.thick = LocalWeatherClientConfig.THICK_RAIN_CLOUDS.get();
-        this.high = encode && LocalWeatherClientConfig.HIGH_LAYER.get();
-        this.highHeight = LocalWeatherClientConfig.HIGH_LAYER_HEIGHT.get();
-        this.towerHeight = LocalWeatherClientConfig.TOWER_HEIGHT.get();
-        this.darknessStrength = LocalWeatherClientConfig.DARKNESS_STRENGTH.get().floatValue();
-        this.cloudCover = LocalWeatherClientConfig.CLOUD_COVER.get().floatValue();
+        ClientSettings settings = ClientSettings.get();
+        this.lod = encode && settings.farClouds();
+        this.detailDistance = settings.detailDistance();
+        this.towers = encode && settings.stormTowers();
+        this.cumulus = encode && settings.cumulusClouds();
+        this.darkness = encode && settings.stormDarkness();
+        this.thick = settings.thickRainClouds();
+        this.high = encode && settings.highLayer();
+        this.highHeight = settings.highLayerHeight();
+        this.towerHeight = settings.towerHeight();
+        this.darknessStrength = (float) settings.darknessStrength();
+        this.cloudCover = (float) settings.cloudCover();
 
         // Same formula as Better Clouds' ChunkedGenerator#calcBufferSize: the buffer holds size * size clouds.
         int size = BetterCloudsCompat.bufferSize(options, Mth.floor(blockDistance / spacing) + Mth.ceil(blockDistance / spacing));
@@ -130,7 +131,6 @@ public final class CloudGenContext implements WeatherView {
     /** Null when the client config isn't loaded yet; Better Clouds then generates as usual. */
     @Nullable
     public static CloudGenContext capture(double originX, double originZ, Config options, float globalCloudiness) {
-        if (!LocalWeatherClientConfig.SPEC.isLoaded()) return null;
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         Entity camera = mc.getCameraEntity();
@@ -173,7 +173,7 @@ public final class CloudGenContext implements WeatherView {
         if (!onBaseGrid && !highGrid) return false;
 
         stormAt(x, z);
-        cumulusHeight = cumulus && cover < 0.15F ? cumulusAt(x + originX, z + originZ) : 0.0F;
+        cumulusHeight = cumulus && cover < 0.15F ? CumulusHeaps.heightAt(regions, gameTime, x + originX, z + originZ) : 0.0F;
         // The deck inside the rain area is one detail step coarser than its surroundings, but never beyond 4x:
         // lone 8x cubes at a deck's edge read as big tinted boxes over the terrain.
         if (lod && rain > DECK_RAIN) step = Math.max(step, Math.min(step * 2, 4));
@@ -344,46 +344,6 @@ public final class CloudGenContext implements WeatherView {
         return best;
     }
 
-    /** Grid of possible cumulus heaps, in blocks; about one in six cells holds one. */
-    private static final double CUMULUS_CELL = 1600.0;
-    private static final float CUMULUS_CHANCE = Boolean.getBoolean("localweather.cumulusTest") ? 0.9F : 0.17F;
-    /** Ticks a heap takes to grow and fall apart again (about half a day). */
-    private static final double CUMULUS_LIFE = 12000.0;
-
-    /**
-     * Height of a fair-weather cumulus heap over this point, 0 where there is none: rare big heaps, only where the
-     * weather regions are clear to fair. They drift with the regions (so with the wind) and grow and fall apart over
-     * about half a day each, at their own times.
-     */
-    private float cumulusAt(double worldX, double worldZ) {
-        double x = worldX - regions.offsetX();
-        double z = worldZ - regions.offsetZ();
-        int cellX = Mth.floor(x / CUMULUS_CELL), cellZ = Mth.floor(z / CUMULUS_CELL);
-        float best = 0.0F;
-        // The heap can reach over a cell's edge: look at the neighbours too.
-        for (int i = cellX - 1; i <= cellX + 1; i++) {
-            for (int j = cellZ - 1; j <= cellZ + 1; j++) {
-                if (hash(i, j, 70) > CUMULUS_CHANCE) continue;
-                double centerX = (i + 0.2 + 0.6 * hash(i, j, 71)) * CUMULUS_CELL;
-                double centerZ = (j + 0.2 + 0.6 * hash(i, j, 72)) * CUMULUS_CELL;
-                double radius = 75.0 + 125.0 * hash(i, j, 73);
-                double d = Math.sqrt(Mth.square(x - centerX) + Mth.square(z - centerZ)) / radius;
-                if (d >= 1.0) continue;
-                // Good weather only: anywhere from clear to fair, not under cloudy or overcast regions (always without them).
-                float region = WeatherRegions.cloudiness(regions, centerX + regions.offsetX(), centerZ + regions.offsetZ(), gameTime);
-                float fair = Float.isNaN(region) ? 1.0F : 1.0F - smoothstep(0.5F, 0.68F, region);
-                if (fair <= 0.0F) continue;
-                double phase = gameTime / CUMULUS_LIFE + hash(i, j, 74);
-                float life = (float) Math.sin(Math.PI * (phase - Math.floor(phase)));
-                double height = (130.0 + 200.0 * hash(i, j, 75)) * fair * life;
-                // Steep sides and a rounded top, taller than wide; lumpy so it reads as a heap of puffs, not a ball.
-                double lumps = 0.75 + 0.25 * STORM_NOISE.getValue(worldX / 60.0 + i * 7.0, worldZ / 60.0 + j * 7.0);
-                best = Math.max(best, (float) (height * Math.pow(1.0 - d * d, 0.4) * lumps));
-            }
-        }
-        return best > 12.0F ? best : 0.0F;
-    }
-
     private CloudCode highCloud(double x, double z, int size) {
         float weather = Math.max(cover, thunder);
         int highSize = Math.max(size, 2);
@@ -459,13 +419,13 @@ public final class CloudGenContext implements WeatherView {
         return Mth.clamp(otherFactors * (clear + (1.05F - clear) * weather), 0.01F, 1.0F);
     }
 
-    private static float smoothstep(float edge0, float edge1, float x) {
+    static float smoothstep(float edge0, float edge1, float x) {
         float t = Mth.clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
         return t * t * (3.0F - 2.0F * t);
     }
 
     /** Stable 0..1 value per grid point and purpose. */
-    private static float hash(int x, int z, int salt) {
+    static float hash(int x, int z, int salt) {
         int h = x * 0x27D4EB2D ^ z * 0x165667B1 ^ salt * 0x9E3779B9;
         h ^= h >>> 15;
         h *= 0x85EBCA6B;
