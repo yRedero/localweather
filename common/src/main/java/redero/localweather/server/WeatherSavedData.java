@@ -30,6 +30,8 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
     /** AutoCloudHeight's result and the build height it was worked out for; MIN_VALUE until then. */
     int autoCloudBase = Integer.MIN_VALUE;
     int autoBuildHeight;
+    /** How far the wind has carried the weather regions (see WeatherRegions), in blocks. */
+    double regionX, regionZ;
 
     public static WeatherSavedData get(ServerLevel level) {
         return level.getDataStorage().computeIfAbsent(FACTORY, NAME);
@@ -62,6 +64,8 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
         tag.putFloat("wind_angle", windAngle);
         tag.putFloat("wind_speed", windSpeed);
         tag.putInt("next_id", nextId);
+        tag.putDouble("region_x", regionX);
+        tag.putDouble("region_z", regionZ);
         if (autoCloudBase != Integer.MIN_VALUE) {
             tag.putInt("auto_cloud_base", autoCloudBase);
             tag.putInt("auto_build_height", autoBuildHeight);
@@ -77,6 +81,8 @@ public final class WeatherSavedData extends SavedData implements WeatherView {
         data.windAngle = tag.getFloat("wind_angle");
         if (tag.contains("wind_speed")) data.windSpeed = tag.getFloat("wind_speed");
         data.nextId = tag.getInt("next_id");
+        data.regionX = tag.getDouble("region_x");
+        data.regionZ = tag.getDouble("region_z");
         if (tag.contains("auto_cloud_base")) {
             data.autoCloudBase = tag.getInt("auto_cloud_base");
             data.autoBuildHeight = tag.getInt("auto_build_height");

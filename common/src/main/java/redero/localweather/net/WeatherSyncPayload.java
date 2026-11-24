@@ -9,12 +9,14 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import redero.localweather.LocalWeather;
 import redero.localweather.weather.StormCell;
+import redero.localweather.weather.WeatherRegions;
 
 /**
  * Every storm cell near one player, sent once a second. The cells are copies, because singleplayer
  * hands payload objects to the client without encoding them.
  */
-public record WeatherSyncPayload(float windX, float windZ, int cloudHeightOffset, List<StormCell> cells)
+public record WeatherSyncPayload(float windX, float windZ, int cloudHeightOffset, WeatherRegions.State regions,
+                                 List<StormCell> cells)
         implements CustomPacketPayload {
     public static final Type<WeatherSyncPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(LocalWeather.MODID, "weather_sync"));
@@ -23,6 +25,7 @@ public record WeatherSyncPayload(float windX, float windZ, int cloudHeightOffset
             ByteBufCodecs.FLOAT, WeatherSyncPayload::windX,
             ByteBufCodecs.FLOAT, WeatherSyncPayload::windZ,
             ByteBufCodecs.VAR_INT, WeatherSyncPayload::cloudHeightOffset,
+            WeatherRegions.State.STREAM_CODEC.cast(), WeatherSyncPayload::regions,
             StreamCodec.<FriendlyByteBuf, StormCell>of((buf, cell) -> cell.write(buf), StormCell::read)
                     .apply(ByteBufCodecs.list(256)), WeatherSyncPayload::cells,
             WeatherSyncPayload::new);

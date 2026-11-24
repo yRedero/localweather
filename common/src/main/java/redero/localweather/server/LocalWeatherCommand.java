@@ -21,6 +21,7 @@ import net.minecraft.world.phys.Vec3;
 import redero.localweather.weather.CellType;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
+import redero.localweather.weather.WeatherRegions;
 
 /** /localweather list | here | clear | spawn <type> [radius] */
 public final class LocalWeatherCommand {
@@ -85,6 +86,13 @@ public final class LocalWeatherCommand {
         String rain = String.format(Locale.ROOT, "%.2f", data.rainAt(pos.x, pos.z));
         String thunder = String.format(Locale.ROOT, "%.2f", data.thunderAt(pos.x, pos.z));
         source.sendSuccess(() -> Component.translatable("commands.localweather.here", rain, thunder), false);
+        float cloudiness = WeatherRegions.cloudiness(WeatherSimulator.regionState(source.getLevel(), data), pos.x, pos.z,
+                source.getLevel().getGameTime());
+        if (!Float.isNaN(cloudiness)) {
+            String sky = cloudiness < 0.33F ? "clear" : cloudiness < 0.66F ? "fair" : "cloudy";
+            String line = String.format(Locale.ROOT, "Weather region: %.2f (%s)", cloudiness, sky);
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
         return 1;
     }
 

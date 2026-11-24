@@ -15,8 +15,8 @@ import redero.localweather.server.WeatherSimulator;
 public final class LocalWeather {
     public static final String MODID = "localweather";
     public static final Logger LOGGER = LogUtils.getLogger();
-    /** Version of the sync payload. 2 added the cloud height offset. */
-    public static final String PROTOCOL = "2";
+    /** Version of the sync payload. 2 added the cloud height offset, 3 the weather regions. */
+    public static final String PROTOCOL = "3";
 
     private LocalWeather() {
     }

@@ -19,6 +19,7 @@ import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LocalWeatherClientConfig;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
+import redero.localweather.weather.WeatherRegions;
 import redero.localweather.weather.WeatherView;
 
 /**
@@ -64,6 +65,9 @@ public final class CloudGenContext implements WeatherView {
     private final float towerHeight;
     private final float darknessStrength;
     private final float cloudCover;
+    /** Weather regions and the game time, frozen with the rest; OFF uses the fixed cloudCover. */
+    private WeatherRegions.State regions = WeatherRegions.State.OFF;
+    private long gameTime;
     private final int extraBudget;
 
     // Per-sample state. A task samples one point at a time on a single thread.
@@ -136,8 +140,11 @@ public final class CloudGenContext implements WeatherView {
         // weather out of it while local weather is active. Without local weather it also holds the camera's rain.
         float cameraWeather = hasWeather ? 0.0F : Math.max(0.6F * level.getRainLevel(1.0F), level.getThunderLevel(1.0F));
         float otherFactors = globalCloudiness / (0.3F * cameraWeather + 0.5F);
-        return new CloudGenContext(inView, weather.aheadTicks(), hasWeather, originX, originZ,
+        CloudGenContext context = new CloudGenContext(inView, weather.aheadTicks(), hasWeather, originX, originZ,
                 camera.getX(), camera.getZ(), otherFactors, options);
+        context.regions = weather.regions();
+        context.gameTime = level.getGameTime();
+        return context;
     }
 
     /**
@@ -384,7 +391,11 @@ public final class CloudGenContext implements WeatherView {
             // Some texture inside the storm so it isn't one flat sheet.
             weather *= (float) (0.85 + 0.15 * STORM_NOISE.getValue(sampleX / 250.0 + 11.0, sampleZ / 250.0 + 11.0));
         }
-        float clear = cloudCover;
+        // Between storms: from nearly clear to overcast with the weather regions, else the fixed fair-weather cover.
+        float region = WeatherRegions.cloudiness(regions, sampleX + originX, sampleZ + originZ, gameTime);
+        // Clear (0) is a few small clouds, fair (0.5) Better Clouds' usual scattered cover, overcast (1) a closed deck.
+        float clear = Float.isNaN(region) ? cloudCover
+                : region < 0.5F ? Mth.lerp(region * 2.0F, 0.12F, 0.6F) : Mth.lerp(region * 2.0F - 1.0F, 0.6F, 0.92F);
         // Never zero: Better Clouds divides by it.
         return Mth.clamp(otherFactors * (clear + (1.05F - clear) * weather), 0.01F, 1.0F);
     }

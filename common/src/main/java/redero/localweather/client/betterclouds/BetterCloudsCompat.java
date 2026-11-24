@@ -69,6 +69,9 @@ public final class BetterCloudsCompat {
             signature = 31 * signature + Mth.floor(cameraZ / DETAIL_REFRESH);
         }
         ClientWeather weather = ClientWeather.INSTANCE;
+        // The weather regions change slowly with time: rebuild once a minute (their drift follows the clouds anyway).
+        net.minecraft.client.multiplayer.ClientLevel level = net.minecraft.client.Minecraft.getInstance().level;
+        if (weather.regions().enabled() && level != null) signature = 31 * signature + Math.floorDiv(level.getGameTime(), 1200L);
         if (weather.active()) {
             int ahead = weather.aheadTicks();
             for (StormCell cell : cellsInView(cameraX, cameraZ, blockDistance)) {

@@ -14,6 +14,7 @@ import redero.localweather.net.WeatherSyncPayload;
 import redero.localweather.server.DevScene;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
+import redero.localweather.weather.WeatherRegions;
 import redero.localweather.weather.WeatherView;
 
 /**
@@ -54,6 +55,10 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
      * clouds don't brighten all at once when the camera climbs past them.
      */
     private float tintRain, oTintRain, tintThunder, oTintThunder;
+    /** The weather regions from the server, carried along by the wind like the clouds. */
+    private WeatherRegions.State regions = WeatherRegions.State.OFF;
+    /** How overcast the weather regions are around the camera, 0..1, slow like the sky. */
+    private float overcast, oOvercast;
     /** 1 below the cloud base, 0 above it (if rain above the clouds is off). */
     private float belowClouds = 1.0F;
     private final float[] sample = new float[3];
@@ -68,6 +73,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         windX = payload.windX();
         windZ = payload.windZ();
         serverCloudHeightOffset = payload.cloudHeightOffset();
+        regions = payload.regions();
         ticksSinceSync = 0;
         if (!active) {
             snapLevels = true;
@@ -104,7 +110,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         float targetRain = sample[0] * targetBelow;
         float targetThunder = sample[1] * targetBelow;
 
-        float skyRainSum = 0.0F, skyThunderSum = 0.0F, cloudSum = 0.0F;
+        float skyRainSum = 0.0F, skyThunderSum = 0.0F, cloudSum = 0.0F, regionSum = 0.0F;
         for (int i = 0; i < 5; i++) {
             double dx = i == 1 ? SKY_RADIUS : i == 2 ? -SKY_RADIUS : 0.0;
             double dz = i == 3 ? SKY_RADIUS : i == 4 ? -SKY_RADIUS : 0.0;
@@ -112,10 +118,14 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
             skyRainSum += sample[0];
             skyThunderSum += sample[1];
             cloudSum += sample[2];
+            float region = regionCloudiness(camera.getX() + dx, camera.getZ() + dz);
+            if (!Float.isNaN(region)) regionSum += region;
         }
+        float targetOvercast = regionSum / 5.0F;
         float targetSkyRain = skyRainSum / 5.0F * targetBelow;
         float targetSkyThunder = skyThunderSum / 5.0F * targetBelow;
         float targetGloom = cloudSum / 5.0F * targetBelow;
+        if (overcastSky()) targetGloom = Math.max(targetGloom, 0.5F * smoothstep(0.55F, 1.0F, targetOvercast) * targetBelow);
         float targetTintRain = skyRainSum / 5.0F;
         float targetTintThunder = skyThunderSum / 5.0F;
 
@@ -126,6 +136,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
             skyThunder = targetSkyThunder;
             gloom = targetGloom;
             tintRain = targetTintRain;
+            overcast = targetOvercast;
             tintThunder = targetTintThunder;
             belowClouds = targetBelow;
             snapLevels = false;
@@ -137,9 +148,11 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         skyThunder = approach(skyThunder, targetSkyThunder, SLOW_STEP);
         gloom = approach(gloom, targetGloom, SLOW_STEP);
         tintRain = approach(tintRain, targetTintRain, SLOW_STEP);
+        overcast = approach(overcast, targetOvercast, SLOW_STEP);
         tintThunder = approach(tintThunder, targetTintThunder, SLOW_STEP);
         belowClouds = targetBelow;
 
+        regions = regions.moved(windX, windZ);
         windOffsetX += windX;
         windOffsetZ += windZ;
         LightningFlashes.tick(cells, ticksSinceSync, camera);
@@ -152,6 +165,7 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         oSkyThunder = skyThunder;
         oGloom = gloom;
         oTintRain = tintRain;
+        oOvercast = overcast;
         oTintThunder = tintThunder;
         oWindOffsetX = windOffsetX;
         oWindOffsetZ = windOffsetZ;
@@ -188,6 +202,8 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
         skyRain = oSkyRain = skyThunder = oSkyThunder = 0.0F;
         gloom = oGloom = 0.0F;
         tintRain = oTintRain = tintThunder = oTintThunder = 0.0F;
+        overcast = oOvercast = 0.0F;
+        regions = WeatherRegions.State.OFF;
         belowClouds = 1.0F;
         LightningFlashes.clear();
     }
@@ -240,6 +256,38 @@ public final class ClientWeather implements WeatherView, LocalWeatherApi.ClientH
     public float rainFog(float partialTick) {
         if (!active || !LocalWeatherClientConfig.SPEC.isLoaded()) return 0.0F;
         return LocalWeatherClientConfig.RAIN_FOG.get().floatValue() * Mth.lerp(partialTick, oRain, rain);
+    }
+
+    /** The weather regions as synced and carried by the wind since (OFF without them). */
+    public WeatherRegions.State regions() {
+        return active ? regions : WeatherRegions.State.OFF;
+    }
+
+    /** 0 (clear) to 1 (overcast) between the storms at a point, or NaN without weather regions. */
+    public float regionCloudiness(double x, double z) {
+        if (!active || level == null) return Float.NaN;
+        return WeatherRegions.cloudiness(regions, x, z, level.getGameTime());
+    }
+
+    private static boolean overcastSky() {
+        return !LocalWeatherClientConfig.SPEC.isLoaded() || LocalWeatherClientConfig.OVERCAST_SKY.get();
+    }
+
+    /** How much overcast regions dim daylight, 0 to 0.15. */
+    public float skyDim(float partialTick) {
+        if (!active || !overcastSky()) return 0.0F;
+        return 0.15F * smoothstep(0.55F, 1.0F, Mth.lerp(partialTick, oOvercast, overcast)) * belowClouds;
+    }
+
+    /** How much thick cloud hides the sun, moon and stars, 0 to 0.9. */
+    public float skyHidden(float partialTick) {
+        if (!active || (LocalWeatherClientConfig.SPEC.isLoaded() && !LocalWeatherClientConfig.CLOUDS_HIDE_SKY.get())) return 0.0F;
+        return 0.9F * smoothstep(0.5F, 0.95F, Mth.lerp(partialTick, oOvercast, overcast)) * belowClouds;
+    }
+
+    private static float smoothstep(float edge0, float edge1, float x) {
+        float t = Mth.clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
     }
 
     /** Rain of the area for tinting the clouds, the same above and below the cloud base. */

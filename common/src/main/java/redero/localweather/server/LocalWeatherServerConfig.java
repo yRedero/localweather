@@ -27,6 +27,10 @@ public final class LocalWeatherServerConfig {
     public static final ModConfigSpec.DoubleValue THUNDERSTORM_CHANCE;
     public static final ModConfigSpec.DoubleValue WIND_MIN;
     public static final ModConfigSpec.DoubleValue WIND_MAX;
+    public static final ModConfigSpec.BooleanValue WEATHER_REGIONS;
+    public static final ModConfigSpec.EnumValue<SkyBalance> SKY_BALANCE;
+    public static final ModConfigSpec.BooleanValue STORMS_FOLLOW_WEATHER;
+    public static final ModConfigSpec.BooleanValue BIOME_WEATHER;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -70,6 +74,20 @@ public final class LocalWeatherServerConfig {
                 .defineInRange("windMin", 0.6, 0.0, 20.0);
         WIND_MAX = b.comment("Fastest wind, in blocks per second.")
                 .defineInRange("windMax", 2.4, 0.0, 20.0);
+        b.pop();
+
+        b.comment("Weather regions: between the storms the sky varies from clear to overcast in areas several km wide that",
+                "drift with the wind and change over a day or two.").push("regions");
+        WEATHER_REGIONS = b.comment("Turn weather regions on. Off: the same fair-weather cover everywhere, as before.")
+                .define("weatherRegions", true);
+        SKY_BALANCE = b.comment("How cloudy the world is between storms. BALANCED: about a third clear, a third fair, a third cloudy.",
+                        "MOSTLY_FAIR: clear and fair skies most of the time. MOODY: cloudy and overcast skies more often.")
+                .defineEnum("skyBalance", SkyBalance.BALANCED);
+        STORMS_FOLLOW_WEATHER = b.comment("Storms form mostly where the sky is cloudy, rarely under clear skies.")
+                .define("stormsFollowWeather", true);
+        BIOME_WEATHER = b.comment("Biomes change the weather: wet biomes (jungles, swamps, oceans) cloudier and stormier,",
+                        "dry ones (deserts, badlands) clearer, with fewer storms. Affects where storms form.")
+                .define("biomeWeather", false);
         b.pop();
 
         SPEC = b.build();
@@ -152,6 +170,33 @@ public final class LocalWeatherServerConfig {
     public enum HeightPreset { AUTO, VANILLA, TECTONIC, TALL_TERRAIN, CUSTOM }
 
     public enum WeatherPreset { DEFAULT, CALM, STORMY, HUGE_STORMS, CUSTOM }
+
+    /** How cloudy the weather regions are on average: shifts their cloudiness down or up. */
+    public enum SkyBalance {
+        MOSTLY_FAIR(-0.12F), BALANCED(0.0F), MOODY(0.12F);
+
+        public final float shift;
+
+        SkyBalance(float shift) {
+            this.shift = shift;
+        }
+    }
+
+    public static boolean weatherRegions() {
+        return !SPEC.isLoaded() || WEATHER_REGIONS.get();
+    }
+
+    public static float skyBalance() {
+        return SPEC.isLoaded() ? SKY_BALANCE.get().shift : 0.0F;
+    }
+
+    public static boolean stormsFollowWeather() {
+        return !SPEC.isLoaded() || STORMS_FOLLOW_WEATHER.get();
+    }
+
+    public static boolean biomeWeather() {
+        return SPEC.isLoaded() && BIOME_WEATHER.get();
+    }
 
     // Built on demand: the config values don't exist yet while the enums are first loaded.
 

@@ -89,5 +89,18 @@
   "localweather.configuration.lightningFlashes": "Lightning flashes",
   "localweather.configuration.lightningFlashes.tooltip": "Lightning lights up the storm clouds around it, and thunderstorms flash inside their clouds now and then.",
   "localweather.configuration.distantThunder": "Distant thunder",
-  "localweather.configuration.distantThunder.tooltip": "Thunder rumbles after flashes inside far storms, later and quieter the further away they are."
+  "localweather.configuration.distantThunder.tooltip": "Thunder rumbles after flashes inside far storms, later and quieter the further away they are.",
+  "localweather.configuration.regions": "Weather regions",
+  "localweather.configuration.weatherRegions": "Weather regions",
+  "localweather.configuration.weatherRegions.tooltip": "Between the storms the sky varies from clear to overcast in areas several km wide that drift with the wind and change over a day or two.",
+  "localweather.configuration.skyBalance": "Sky balance",
+  "localweather.configuration.skyBalance.tooltip": "How cloudy the world is between storms. Balanced: about a third clear, a third fair, a third cloudy.",
+  "localweather.configuration.stormsFollowWeather": "Storms follow the weather",
+  "localweather.configuration.stormsFollowWeather.tooltip": "Storms form mostly where the sky is cloudy, rarely under clear skies.",
+  "localweather.configuration.biomeWeather": "Biomes change the weather",
+  "localweather.configuration.biomeWeather.tooltip": "Wet biomes cloudier and stormier, dry ones clearer with fewer storms. Affects where storms form.",
+  "localweather.configuration.overcastSky": "Overcast dims the sky",
+  "localweather.configuration.overcastSky.tooltip": "Under overcast weather regions the sky greys over and daylight dims a little.",
+  "localweather.configuration.cloudsHideSky": "Clouds hide the sky",
+  "localweather.configuration.cloudsHideSky.tooltip": "Thick cloud hides the sun, moon and stars; clear skies show them fully."
 }

@@ -17,6 +17,7 @@ import redero.localweather.platform.Platform;
 import redero.localweather.weather.CellType;
 import redero.localweather.weather.LocalWeatherApi;
 import redero.localweather.weather.StormCell;
+import redero.localweather.weather.WeatherRegions;
 
 /** Moves, ages, spawns and syncs storm cells. Runs in place of vanilla's weather cycle. */
 public final class WeatherSimulator {
@@ -56,6 +57,8 @@ public final class WeatherSimulator {
         float windX = data.windX();
         float windZ = data.windZ();
 
+        data.regionX += windX * STEP;
+        data.regionZ += windZ * STEP;
         for (StormCell cell : data.cells) {
             cell.vx = windX * cell.windFactor;
             cell.vz = windZ * cell.windFactor;
@@ -66,7 +69,10 @@ public final class WeatherSimulator {
         data.cells.removeIf(cell -> cell.age >= cell.lifetime || farFromPlayers(level, cell));
 
         for (ServerPlayer player : level.players()) {
-            if (random.nextDouble() * SPAWN_ODDS < LocalWeatherServerConfig.stormFrequency()
+            // With storms following the regions a share of attempts is turned down (see trySpawnUpwind), so try more
+            // often to keep about as many storms overall.
+            double attempts = regionsShapeStorms() ? 1.6 : 1.0;
+            if (random.nextDouble() * SPAWN_ODDS < LocalWeatherServerConfig.stormFrequency() * attempts
                     && countNear(data, player.getX(), player.getZ()) < LocalWeatherServerConfig.maxStormsNearby()) {
                 trySpawnUpwind(level, data, player, random);
             }
@@ -99,7 +105,36 @@ public final class WeatherSimulator {
             type = CellType.RAIN;
             radius = rollRadius(type, random);
         }
+        if (regionsShapeStorms()) {
+            float cloudiness = WeatherRegions.cloudiness(regionState(level, data), x, z, level.getGameTime());
+            if (LocalWeatherServerConfig.biomeWeather()) cloudiness = Mth.clamp(cloudiness + biomeShift(biome), 0.0F, 1.0F);
+            // Rare under clear skies, every time under overcast.
+            if (random.nextFloat() > 0.1F + 0.9F * smoothstep(0.2F, 0.85F, cloudiness)) return;
+        }
         spawn(data, type, x, z, radius, random);
+    }
+
+    private static boolean regionsShapeStorms() {
+        return LocalWeatherServerConfig.weatherRegions() && LocalWeatherServerConfig.stormsFollowWeather();
+    }
+
+    /** Wet biomes are cloudier, dry ones clearer (biomeWeather). */
+    private static float biomeShift(Biome biome) {
+        if (!biome.hasPrecipitation()) return -0.35F;
+        float downfall = ((BiomeAccessor) (Object) biome).localweather$climateSettings().downfall();
+        return (Mth.clamp(downfall, 0.0F, 1.0F) - 0.4F) * 0.35F;
+    }
+
+    /** The weather regions as players get them: on or off, this dimension's seed, how far the wind carried them. */
+    public static WeatherRegions.State regionState(ServerLevel level, WeatherSavedData data) {
+        if (!LocalWeatherServerConfig.weatherRegions()) return WeatherRegions.State.OFF;
+        long seed = level.getSeed() ^ level.dimension().location().hashCode() * 0x9E3779B97F4A7C15L;
+        return new WeatherRegions.State(true, seed, data.regionX, data.regionZ, LocalWeatherServerConfig.skyBalance());
+    }
+
+    private static float smoothstep(float edge0, float edge1, float x) {
+        float t = Mth.clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+        return t * t * (3.0F - 2.0F * t);
     }
 
     /** Wet biomes and oceans grow storms, dry ones rarely do. */
@@ -223,7 +258,7 @@ public final class WeatherSimulator {
             }
         }
         Platform.INSTANCE.send(player, new WeatherSyncPayload(moving ? data.windX() : 0.0F, moving ? data.windZ() : 0.0F,
-                AutoCloudHeight.offset(player.serverLevel()), near));
+                AutoCloudHeight.offset(player.serverLevel()), regionState(player.serverLevel(), data), near));
     }
 
     private static boolean farFromPlayers(ServerLevel level, StormCell cell) {

@@ -13,6 +13,12 @@ import redero.localweather.client.ClientWeather;
 
 @Mixin(ClientLevel.class)
 public abstract class ClientLevelMixin {
+    /** Daylight dims a little under overcast weather regions. */
+    @ModifyReturnValue(method = "getSkyDarken", at = @At("RETURN"))
+    private float localweather$overcastLight(float darken, float partialTick) {
+        return darken * (1.0F - ClientWeather.INSTANCE.skyDim(partialTick));
+    }
+
     /** The sky greys over as a storm's clouds build up, before any rain falls. */
     @ModifyReturnValue(method = "getSkyColor", at = @At("RETURN"))
     private Vec3 localweather$gloomySky(Vec3 color, Vec3 pos, float partialTick) {

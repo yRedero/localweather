@@ -43,6 +43,8 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.DoubleValue RAIN_FOG;
     public static final ModConfigSpec.DoubleValue SKY_GLOOM;
     public static final ModConfigSpec.DoubleValue GLOBAL_TINT;
+    public static final ModConfigSpec.BooleanValue OVERCAST_SKY;
+    public static final ModConfigSpec.BooleanValue CLOUDS_HIDE_SKY;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -126,6 +128,10 @@ public final class LocalWeatherClientConfig {
         GLOBAL_TINT = b.comment("Better Clouds darkens every cloud by the rain where you stand. Storm clouds are darkened",
                         "one by one instead, so only this share of that is kept, 0 to 1. Better Clouds' own behaviour is 1.")
                 .defineInRange("globalRainTint", 0.35, 0.0, 1.0);
+        OVERCAST_SKY = b.comment("Under overcast weather regions the sky greys over and daylight dims a little.")
+                .define("overcastSky", true);
+        CLOUDS_HIDE_SKY = b.comment("Thick cloud hides the sun, moon and stars; clear skies show them fully.")
+                .define("cloudsHideSky", true);
         b.pop();
 
         SPEC = b.build();
