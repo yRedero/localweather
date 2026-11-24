@@ -59,19 +59,11 @@ public final class RainShafts {
     /** Rain falls about this fast, in blocks per second, which sets how far the wind slants a veil. */
     private static final double FALL_SPEED = 9.0;
     private static final float BASE_ALPHA = 0.3F;
-    /** The haze: a coarser grid of wide, soft veils that overlap into one, for any rain at all. */
-    private static final double HAZE_SPACING = 300.0;
-    private static final float HAZE_MIN_RAIN = 0.05F;
-    private static final double HAZE_FADE_IN_START = 150.0;
-    private static final double HAZE_FADE_IN_END = 450.0;
-    private static final float HAZE_ALPHA = 0.17F;
-    private static final int HAZE_STRIPS = 6;
 
     private record Shaft(double x, double z, float rain, float seed, double ground) {
     }
 
     private static final List<Shaft> SHAFTS = new ArrayList<>();
-    private static final List<Shaft> HAZE = new ArrayList<>();
     /** Registered by the loader's shader event; without it the veils aren't drawn. */
     @Nullable
     private static ShaderInstance shader;
@@ -114,7 +106,6 @@ public final class RainShafts {
     public static void tick() {
         if (!enabled()) {
             SHAFTS.clear();
-            HAZE.clear();
             return;
         }
         if (ticks++ % REFRESH_TICKS != 0) return;
@@ -122,12 +113,9 @@ public final class RainShafts {
         ClientLevel level = mc.level;
         if (level == null) return;
         SHAFTS.clear();
-        HAZE.clear();
         ClientWeather weather = ClientWeather.INSTANCE;
         int ahead = weather.aheadTicks();
-        boolean haze = LocalWeatherClientConfig.RAIN_HAZE.get() > 0.0;
         for (StormCell cell : weather.cells()) {
-            if (haze) findHaze(level, cell, ahead);
             double cx = cell.centerX(ahead);
             double cz = cell.centerZ(ahead);
             double reach = cell.radius * 1.35;
@@ -142,23 +130,6 @@ public final class RainShafts {
                     if (rain < MIN_RAIN) continue;
                     SHAFTS.add(new Shaft(x, z, rain, hash(gx, gz, 3), groundAt(level, x, z)));
                 }
-            }
-        }
-    }
-
-    private static void findHaze(ClientLevel level, StormCell cell, int ahead) {
-        double cx = cell.centerX(ahead);
-        double cz = cell.centerZ(ahead);
-        double reach = cell.radius * 1.35;
-        int minX = Mth.floor((cx - reach) / HAZE_SPACING), maxX = Mth.floor((cx + reach) / HAZE_SPACING);
-        int minZ = Mth.floor((cz - reach) / HAZE_SPACING), maxZ = Mth.floor((cz + reach) / HAZE_SPACING);
-        for (int gx = minX; gx <= maxX; gx++) {
-            for (int gz = minZ; gz <= maxZ; gz++) {
-                double x = (gx + 0.25 + 0.5 * hash(gx, gz, 11)) * HAZE_SPACING;
-                double z = (gz + 0.25 + 0.5 * hash(gx, gz, 12)) * HAZE_SPACING;
-                float rain = cell.rainAt(x, z, ahead);
-                if (rain < HAZE_MIN_RAIN) continue;
-                HAZE.add(new Shaft(x, z, rain, hash(gx, gz, 13), groundAt(level, x, z)));
             }
         }
     }
@@ -200,51 +171,16 @@ public final class RainShafts {
         float green = fog[1] * 0.43F + 0.03F;
         float blue = fog[2] * 0.47F + 0.04F;
 
-        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-        // The haze first, the shafts on top. Coloured like the sky, a little greyer.
-        float hazeStrength = LocalWeatherClientConfig.RAIN_HAZE.get().floatValue();
-        float grey = 0.3F * fog[0] + 0.59F * fog[1] + 0.11F * fog[2];
-        float hazeRed = Mth.lerp(0.35F, fog[0], grey) * 0.85F;
-        float hazeGreen = Mth.lerp(0.35F, fog[1], grey) * 0.85F;
-        float hazeBlue = Mth.lerp(0.35F, fog[2], grey) * 0.88F;
-        // Under a storm the haze closes in and thickens with its strength: rain and thunder where the camera is.
-        float underRain = weather.cameraRain();
-        float underThunder = weather.cameraThunder();
-        double hazeStart = Mth.lerp(underRain, HAZE_FADE_IN_START, 30.0);
-        double hazeEnd = Mth.lerp(underRain, HAZE_FADE_IN_END, 140.0);
-        float hazeBoost = 1.0F + 1.5F * underRain + 1.0F * underThunder;
-        for (Shaft haze : below > 0.0F ? HAZE : List.<Shaft>of()) {
-            double dx = haze.x - cam.x;
-            double dz = haze.z - cam.z;
-            double distance = Math.sqrt(dx * dx + dz * dz);
-            if (distance < hazeStart || distance > maxDistance) continue;
-            float fade = smoothstep(hazeStart, hazeEnd, distance)
-                    * (1.0F - smoothstep(0.55 * maxDistance, maxDistance, distance));
-            float a = Math.min(0.6F, HAZE_ALPHA * hazeStrength * hazeBoost * Math.min(1.0F, haze.rain * 1.6F) * fade * below);
-            if (a < 0.002F) continue;
-            double top = base - cam.y;
-            double bottom = haze.ground - cam.y;
-            if (top <= bottom) continue;
-            double fadeY = top - (top - bottom) * 0.25;
-            double rightX = -dz / distance, rightZ = dx / distance;
-            // Wide enough that neighbours overlap into one haze, in strips so pieces beside the camera can be
-            // dropped alone (see ahead()).
-            double half = HAZE_SPACING * (1.0 + 0.2 * haze.seed);
-            for (int i = 0; i < HAZE_STRIPS; i++) {
-                double o0 = (2.0 * i / HAZE_STRIPS - 1.0) * half, o1 = (2.0 * (i + 1) / HAZE_STRIPS - 1.0) * half;
-                double x0 = dx + rightX * o0, z0 = dz + rightZ * o0;
-                double x1 = dx + rightX * o1, z1 = dz + rightZ * o1;
-                if (!ahead(x0, top, z0, x1, bottom, z1) || !ahead(x0, bottom, z0, x1, top, z1)) continue;
-                buffer.addVertex((float) x0, (float) top, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
-                buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
-                buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
-                buffer.addVertex((float) x1, (float) top, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, 0.0F);
-                buffer.addVertex((float) x0, (float) fadeY, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a);
-                buffer.addVertex((float) x0, (float) bottom, (float) z0).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
-                buffer.addVertex((float) x1, (float) bottom, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a * 0.85F);
-                buffer.addVertex((float) x1, (float) fadeY, (float) z1).setColor(hazeRed, hazeGreen, hazeBlue, a);
-            }
+        // The haze first, before this builds its own geometry: Tesselator has a single buffer, and beginning another
+        // while one is open breaks the first (the haze went missing for the frames a bolt was drawn).
+        VoxyDepth.Snapshot voxy = VoxyDepth.current();
+        boolean haze = below > 0.0F && RainHaze.wanted();
+        if (haze) {
+            copyDepth(mc);
+            RainHaze.render(camera, depthCopy.getDepthTextureId(), voxy, base, below);
         }
+
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         for (Shaft shaft : below > 0.0F ? SHAFTS : List.<Shaft>of()) {
             double dx = shaft.x - cam.x;
             double dz = shaft.z - cam.z;
@@ -297,20 +233,11 @@ public final class RainShafts {
                 bolt(buffer, level, cam, baseY, x, groundY, z, intensity, seed));
         MeshData mesh = buffer.build();
         if (mesh == null) return;
-
-        RenderTarget main = mc.getMainRenderTarget();
-        if (depthCopy == null) {
-            depthCopy = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
-        } else if (depthCopy.width != main.width || depthCopy.height != main.height) {
-            depthCopy.resize(main.width, main.height, Minecraft.ON_OSX);
-        }
-        depthCopy.copyDepthFrom(main);
-        main.bindWrite(false);
+        if (!haze) copyDepth(mc);
 
         ShaderInstance program = shader;
         program.setSampler("SceneDepth", depthCopy.getDepthTextureId());
         program.safeGetUniform("DepthRange").set(0.05F, mc.gameRenderer.getDepthFar());
-        VoxyDepth.Snapshot voxy = VoxyDepth.current();
         if (voxy != null) {
             program.setSampler("LodDepth", voxy.texture());
             program.safeGetUniform("LodInvProj").set(voxy.inverseProjection());
@@ -341,54 +268,71 @@ public final class RainShafts {
         if (intensity <= 0.01F) return;
         java.util.Random random = new java.util.Random(seed);
         double ground = Double.isNaN(groundY) ? groundAt(level, x, z) : groundY;
-        if (ground >= base) return;
+        double height = base - ground;
+        if (height <= 4.0) return;
         double distance = Math.sqrt(Mth.square(x - cam.x) + Mth.square(z - cam.z));
-        // A few pixels wide however far away (about 4 blocks per km), so it shows against a bright day sky too.
-        // About one in six is a huge bolt: three times as wide, brighter, branching several times.
+        // About one in six is a huge bolt: wider, brighter, branching several times.
         boolean huge = random.nextFloat() < 0.17F;
-        double width = Math.max(0.6, distance * 0.004) * (huge ? 3.0 : 1.0);
-        float alpha = Math.min(1.0F, intensity * (huge ? 2.2F : 1.5F));
-        int segments = huge ? 18 : 14;
-        double step = (base - ground) / segments;
-        // Side branches fork off and die out: one usually, three to five on a huge bolt.
-        int branches = huge ? 3 + random.nextInt(3) : 1;
-        long branchMask = 0;
-        for (int b = 0; b < branches; b++) branchMask |= 1L << (2 + random.nextInt(Math.max(1, segments - 6)));
-        double px = x - cam.x, pz = z - cam.z, py = base - cam.y;
-        for (int i = 0; i < segments; i++) {
-            double nx = px + (random.nextDouble() - 0.5) * step * 1.2;
-            double nz = pz + (random.nextDouble() - 0.5) * step * 1.2;
-            double ny = py - step;
-            boltSegment(buffer, px, py, pz, nx, ny, nz, width, alpha);
-            if ((branchMask & 1L << i) != 0) {
-                double bx = px, by = py, bz = pz;
-                double dirX = random.nextDouble() - 0.5, dirZ = random.nextDouble() - 0.5;
-                for (int j = 0; j < (huge ? 7 : 5); j++) {
-                    double cx = bx + (dirX + (random.nextDouble() - 0.5) * 0.6) * step;
-                    double cz = bz + (dirZ + (random.nextDouble() - 0.5) * 0.6) * step;
-                    double cy = by - step * 0.8;
-                    boltSegment(buffer, bx, by, bz, cx, cy, cz, width * 0.6, alpha * Math.max(0.1F, 1.0F - j * 0.15F));
-                    bx = cx;
-                    by = cy;
-                    bz = cz;
-                }
-            }
-            px = nx;
-            pz = nz;
-            py = ny;
+        // A thin core, never under a pixel or two far away (3 blocks per km); the glow around it is soft.
+        double core = Math.max(0.45, distance * 0.003) * (huge ? 2.5 : 1.0);
+        float alpha = Math.min(1.0F, intensity * (huge ? 2.0F : 1.5F));
+
+        // From the cloud base, leaning a little to one side, down to exactly where it strikes.
+        double[] top = {x + (random.nextDouble() - 0.5) * 0.35 * height, base, z + (random.nextDouble() - 0.5) * 0.35 * height};
+        double[] foot = {x, ground, z};
+        List<double[]> path = jagged(top, foot, random, 6, 0.22);
+        drawPath(buffer, cam, path, core, alpha);
+        // Branches fork off the upper two thirds and die out on the way down.
+        int branches = huge ? 4 + random.nextInt(3) : 1 + random.nextInt(2);
+        for (int b = 0; b < branches; b++) {
+            double[] from = path.get(path.size() / 8 + random.nextInt(Math.max(1, path.size() * 5 / 8)));
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double drop = height * (0.15 + 0.25 * random.nextDouble());
+            double reach = drop * (0.4 + 0.6 * random.nextDouble());
+            double[] to = {from[0] + Math.cos(angle) * reach, Math.max(ground, from[1] - drop), from[2] + Math.sin(angle) * reach};
+            drawPath(buffer, cam, jagged(from, to, random, 4, 0.25), core * 0.55, alpha * 0.6F);
         }
     }
 
-    private static void boltSegment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
-                                    double width, float alpha) {
-        if (!ahead(x0, y0, z0, x1, y1, z1)) return;
-        segment(buffer, x0, y0, z0, x1, y1, z1, width * 7.0, 0.6F, 0.66F, 0.9F, alpha * 0.25F);
-        segment(buffer, x0, y0, z0, x1, y1, z1, width, 1.0F, 1.0F, 1.0F, alpha);
+    /** A line from a to b, its midpoints pushed sideways again and again (smaller each time): lightning's zigzag. */
+    private static List<double[]> jagged(double[] a, double[] b, java.util.Random random, int depth, double roughness) {
+        List<double[]> points = new ArrayList<>();
+        points.add(a);
+        points.add(b);
+        for (int level = 0; level < depth; level++) {
+            List<double[]> next = new ArrayList<>(points.size() * 2);
+            for (int i = 0; i < points.size() - 1; i++) {
+                double[] p = points.get(i), q = points.get(i + 1);
+                double length = Math.sqrt(Mth.square(q[0] - p[0]) + Mth.square(q[1] - p[1]) + Mth.square(q[2] - p[2]));
+                double push = length * roughness;
+                next.add(p);
+                next.add(new double[]{(p[0] + q[0]) * 0.5 + (random.nextDouble() - 0.5) * 2.0 * push,
+                        (p[1] + q[1]) * 0.5 + (random.nextDouble() - 0.5) * 0.4 * push,
+                        (p[2] + q[2]) * 0.5 + (random.nextDouble() - 0.5) * 2.0 * push});
+            }
+            next.add(points.get(points.size() - 1));
+            points = next;
+        }
+        return points;
     }
 
-    /** A quad along a line segment, turned to face the camera (at the origin). */
-    private static void segment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
-                                double width, float r, float g, float b, float a) {
+    private static void drawPath(BufferBuilder buffer, Vec3 cam, List<double[]> path, double core, float alpha) {
+        for (int i = 0; i < path.size() - 1; i++) {
+            double[] p = path.get(i), q = path.get(i + 1);
+            double x0 = p[0] - cam.x, y0 = p[1] - cam.y, z0 = p[2] - cam.z;
+            double x1 = q[0] - cam.x, y1 = q[1] - cam.y, z1 = q[2] - cam.z;
+            if (!ahead(x0, y0, z0, x1, y1, z1)) continue;
+            softSegment(buffer, x0, y0, z0, x1, y1, z1, core * 8.0, 0.55F, 0.62F, 0.95F, alpha * 0.24F);
+            softSegment(buffer, x0, y0, z0, x1, y1, z1, core, 0.92F, 0.95F, 1.0F, alpha);
+        }
+    }
+
+    /**
+     * A line segment as two quads turned to face the camera (at the origin): full alpha along the line, fading to
+     * nothing at both edges, so it reads as light rather than a flat strip.
+     */
+    private static void softSegment(BufferBuilder buffer, double x0, double y0, double z0, double x1, double y1, double z1,
+                                    double width, float r, float g, float b, float a) {
         double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
         double mx = (x0 + x1) * 0.5, my = (y0 + y1) * 0.5, mz = (z0 + z1) * 0.5;
         // Sideways = segment direction x view direction.
@@ -399,10 +343,26 @@ public final class RainShafts {
         sx *= half;
         sy *= half;
         sz *= half;
-        buffer.addVertex((float) (x0 - sx), (float) (y0 - sy), (float) (z0 - sz)).setColor(r, g, b, a);
-        buffer.addVertex((float) (x1 - sx), (float) (y1 - sy), (float) (z1 - sz)).setColor(r, g, b, a);
-        buffer.addVertex((float) (x1 + sx), (float) (y1 + sy), (float) (z1 + sz)).setColor(r, g, b, a);
-        buffer.addVertex((float) (x0 + sx), (float) (y0 + sy), (float) (z0 + sz)).setColor(r, g, b, a);
+        buffer.addVertex((float) (x0 - sx), (float) (y0 - sy), (float) (z0 - sz)).setColor(r, g, b, 0.0F);
+        buffer.addVertex((float) (x1 - sx), (float) (y1 - sy), (float) (z1 - sz)).setColor(r, g, b, 0.0F);
+        buffer.addVertex((float) x1, (float) y1, (float) z1).setColor(r, g, b, a);
+        buffer.addVertex((float) x0, (float) y0, (float) z0).setColor(r, g, b, a);
+        buffer.addVertex((float) x0, (float) y0, (float) z0).setColor(r, g, b, a);
+        buffer.addVertex((float) x1, (float) y1, (float) z1).setColor(r, g, b, a);
+        buffer.addVertex((float) (x1 + sx), (float) (y1 + sy), (float) (z1 + sz)).setColor(r, g, b, 0.0F);
+        buffer.addVertex((float) (x0 + sx), (float) (y0 + sy), (float) (z0 + sz)).setColor(r, g, b, 0.0F);
+    }
+
+    /** Copies the scene's depth for the shaders to read while they draw onto the scene. */
+    private static void copyDepth(Minecraft mc) {
+        RenderTarget main = mc.getMainRenderTarget();
+        if (depthCopy == null) {
+            depthCopy = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
+        } else if (depthCopy.width != main.width || depthCopy.height != main.height) {
+            depthCopy.resize(main.width, main.height, Minecraft.ON_OSX);
+        }
+        depthCopy.copyDepthFrom(main);
+        main.bindWrite(false);
     }
 
     /** Called by the loader once the shader is compiled (also after resource reloads). */
@@ -412,7 +372,6 @@ public final class RainShafts {
 
     public static void clear() {
         SHAFTS.clear();
-        HAZE.clear();
     }
 
     private static float smoothstep(double edge0, double edge1, double x) {

@@ -27,6 +27,7 @@ public final class LocalWeatherClient {
     public static void tick() {
         ClientWeather.INSTANCE.tick();
         RainShafts.tick();
+        RainHaze.tick();
         DevSceneClient.tick();
     }
 

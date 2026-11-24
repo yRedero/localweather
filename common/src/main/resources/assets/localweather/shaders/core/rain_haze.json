@@ -1,0 +1,26 @@
+{
+    "vertex": "localweather:rain_haze",
+    "fragment": "localweather:rain_haze",
+    "samplers": [
+        { "name": "SceneDepth" },
+        { "name": "LodDepth" },
+        { "name": "RainMap" }
+    ],
+    "uniforms": [
+        { "name": "ScreenSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "DepthRange", "type": "float", "count": 2, "values": [ 0.05, 1000.0 ] },
+        { "name": "LodInfo", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
+        { "name": "LodInvProj", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "Look", "type": "float", "count": 3, "values": [ 0.0, 0.0, -1.0 ] },
+        { "name": "Right", "type": "float", "count": 3, "values": [ 1.0, 0.0, 0.0 ] },
+        { "name": "Up", "type": "float", "count": 3, "values": [ 0.0, 1.0, 0.0 ] },
+        { "name": "CamY", "type": "float", "count": 1, "values": [ 64.0 ] },
+        { "name": "CloudBase", "type": "float", "count": 1, "values": [ 192.0 ] },
+        { "name": "MapOrigin", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
+        { "name": "MapSize", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "MaxDist", "type": "float", "count": 1, "values": [ 1000.0 ] },
+        { "name": "HazeColor", "type": "float", "count": 3, "values": [ 0.5, 0.5, 0.5 ] },
+        { "name": "Density", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "Fade", "type": "float", "count": 1, "values": [ 1.0 ] }
+    ]
+}

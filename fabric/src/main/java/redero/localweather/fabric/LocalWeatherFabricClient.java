@@ -14,6 +14,7 @@ import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import redero.localweather.LocalWeather;
 import redero.localweather.client.ClientWeather;
 import redero.localweather.client.LocalWeatherClient;
+import redero.localweather.client.RainHaze;
 import redero.localweather.client.RainShafts;
 import redero.localweather.net.WeatherSyncPayload;
 
@@ -28,8 +29,10 @@ public final class LocalWeatherFabricClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> LocalWeatherClient.tick());
         ClientEntityEvents.ENTITY_LOAD.register((entity, level) -> LocalWeatherClient.onEntityJoin(entity));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> LocalWeatherClient.onLoggingOut());
-        CoreShaderRegistrationCallback.EVENT.register(context ->
-                context.register(RainShafts.SHADER, DefaultVertexFormat.POSITION_COLOR, RainShafts::setShader));
+        CoreShaderRegistrationCallback.EVENT.register(context -> {
+            context.register(RainShafts.SHADER, DefaultVertexFormat.POSITION_COLOR, RainShafts::setShader);
+            context.register(RainHaze.SHADER, DefaultVertexFormat.POSITION, RainHaze::setShader);
+        });
         WorldRenderEvents.LAST.register(context -> LocalWeatherClient.renderAfterWeather(context.camera(),
                 context.tickCounter().getGameTimeDeltaPartialTick(false)));
     }
