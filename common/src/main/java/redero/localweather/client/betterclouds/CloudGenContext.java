@@ -60,6 +60,10 @@ public final class CloudGenContext implements WeatherView {
     private final float spacing, sizeXZ, sizeY, yOffset;
     private final int blockDistance, detailDistance;
     private final boolean encode, lod, towers, darkness, thick, high;
+    /** Rare big fair-weather cumulus heaps (see cumulusAt). */
+    private final boolean cumulus;
+    /** Height of the cumulus heap over the current sample, 0 where there is none. */
+    private float cumulusHeight;
     private final float highHeight;
     /** Tallest tower above the cloud deck, in blocks; the anvil sits just above. */
     private final float towerHeight;
@@ -109,6 +113,7 @@ public final class CloudGenContext implements WeatherView {
         this.lod = encode && LocalWeatherClientConfig.FAR_CLOUDS.get();
         this.detailDistance = LocalWeatherClientConfig.DETAIL_DISTANCE.get();
         this.towers = encode && LocalWeatherClientConfig.STORM_TOWERS.get();
+        this.cumulus = encode && LocalWeatherClientConfig.CUMULUS_CLOUDS.get();
         this.darkness = encode && LocalWeatherClientConfig.STORM_DARKNESS.get();
         this.thick = LocalWeatherClientConfig.THICK_RAIN_CLOUDS.get();
         this.high = encode && LocalWeatherClientConfig.HIGH_LAYER.get();
@@ -168,6 +173,7 @@ public final class CloudGenContext implements WeatherView {
         if (!onBaseGrid && !highGrid) return false;
 
         stormAt(x, z);
+        cumulusHeight = cumulus && cover < 0.15F ? cumulusAt(x + originX, z + originZ) : 0.0F;
         // The deck inside the rain area is one detail step coarser than its surroundings, but never beyond 4x:
         // lone 8x cubes at a deck's edge read as big tinted boxes over the terrain.
         if (lod && rain > DECK_RAIN) step = Math.max(step, Math.min(step * 2, 4));
@@ -192,6 +198,8 @@ public final class CloudGenContext implements WeatherView {
             // Better Clouds' noise leaves holes even at full cover; where it rains there's always a cloud above.
             // Varied strength: Better Clouds sets height from it, and equal heights would z-fight from above.
             if (rain > 0.2F) value = Math.max(value, 0.75F * smoothstep(0.2F, 0.6F, rain) * (0.8F + 0.4F * hash(sampleX, sampleZ, 31)));
+            // A cumulus heap sits on a closed base of its own.
+            if (cumulusHeight > 0.0F) value = Math.max(value, 0.7F + 0.1F * hash(sampleX, sampleZ, 32));
             if (value > 0.0F) stats[step][1]++;
         } else {
             value = 0.0F;
@@ -234,6 +242,17 @@ public final class CloudGenContext implements WeatherView {
         // One puff on every 4th deck cloud is enough to make the deck read as thicker.
         if (thick && rain > 0.4F && towerGrid) {
             queue(x, y + sizeY * size * 0.6, z, size, dark * 0.9F, false, 0.35, 1);
+        }
+        // A cumulus heap: puffs stacked into a dome on a flat, slightly grey base, white towards the top (the shader
+        // shades storm-coded clouds by height, so a little darkness at the base is enough).
+        if (cumulusHeight > 0.0F && towerGrid) {
+            int heapSize = Math.max(3, step);
+            double levelStep = sizeY * heapSize * 0.75;
+            int levels = (int) (cumulusHeight / levelStep);
+            for (int i = 1; i <= levels; i++) {
+                queue(x, y + i * levelStep, z, heapSize, 0.15F, false, 0.35, 60 + i);
+            }
+            towerPieces += levels;
         }
         if (towers && towerGrid && thunder > 0.25F) {
             int towerSize = Math.max(3, step);
@@ -323,6 +342,46 @@ public final class CloudGenContext implements WeatherView {
             best = Math.max(best, band * sides * cell.thunder);
         }
         return best;
+    }
+
+    /** Grid of possible cumulus heaps, in blocks; about one in six cells holds one. */
+    private static final double CUMULUS_CELL = 1600.0;
+    private static final float CUMULUS_CHANCE = Boolean.getBoolean("localweather.cumulusTest") ? 0.9F : 0.17F;
+    /** Ticks a heap takes to grow and fall apart again (about half a day). */
+    private static final double CUMULUS_LIFE = 12000.0;
+
+    /**
+     * Height of a fair-weather cumulus heap over this point, 0 where there is none: rare big heaps, only where the
+     * weather regions are clear to fair. They drift with the regions (so with the wind) and grow and fall apart over
+     * about half a day each, at their own times.
+     */
+    private float cumulusAt(double worldX, double worldZ) {
+        double x = worldX - regions.offsetX();
+        double z = worldZ - regions.offsetZ();
+        int cellX = Mth.floor(x / CUMULUS_CELL), cellZ = Mth.floor(z / CUMULUS_CELL);
+        float best = 0.0F;
+        // The heap can reach over a cell's edge: look at the neighbours too.
+        for (int i = cellX - 1; i <= cellX + 1; i++) {
+            for (int j = cellZ - 1; j <= cellZ + 1; j++) {
+                if (hash(i, j, 70) > CUMULUS_CHANCE) continue;
+                double centerX = (i + 0.2 + 0.6 * hash(i, j, 71)) * CUMULUS_CELL;
+                double centerZ = (j + 0.2 + 0.6 * hash(i, j, 72)) * CUMULUS_CELL;
+                double radius = 75.0 + 125.0 * hash(i, j, 73);
+                double d = Math.sqrt(Mth.square(x - centerX) + Mth.square(z - centerZ)) / radius;
+                if (d >= 1.0) continue;
+                // Good weather only: anywhere from clear to fair, not under cloudy or overcast regions (always without them).
+                float region = WeatherRegions.cloudiness(regions, centerX + regions.offsetX(), centerZ + regions.offsetZ(), gameTime);
+                float fair = Float.isNaN(region) ? 1.0F : 1.0F - smoothstep(0.5F, 0.68F, region);
+                if (fair <= 0.0F) continue;
+                double phase = gameTime / CUMULUS_LIFE + hash(i, j, 74);
+                float life = (float) Math.sin(Math.PI * (phase - Math.floor(phase)));
+                double height = (130.0 + 200.0 * hash(i, j, 75)) * fair * life;
+                // Steep sides and a rounded top, taller than wide; lumpy so it reads as a heap of puffs, not a ball.
+                double lumps = 0.75 + 0.25 * STORM_NOISE.getValue(worldX / 60.0 + i * 7.0, worldZ / 60.0 + j * 7.0);
+                best = Math.max(best, (float) (height * Math.pow(1.0 - d * d, 0.4) * lumps));
+            }
+        }
+        return best > 12.0F ? best : 0.0F;
     }
 
     private CloudCode highCloud(double x, double z, int size) {

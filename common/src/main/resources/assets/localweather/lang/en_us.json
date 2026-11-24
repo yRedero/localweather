@@ -102,5 +102,7 @@
   "localweather.configuration.overcastSky": "Overcast dims the sky",
   "localweather.configuration.overcastSky.tooltip": "Under overcast weather regions the sky greys over and daylight dims a little.",
   "localweather.configuration.cloudsHideSky": "Clouds hide the sky",
-  "localweather.configuration.cloudsHideSky.tooltip": "Thick cloud hides the sun, moon and stars; clear skies show them fully."
+  "localweather.configuration.cloudsHideSky.tooltip": "Thick cloud hides the sun, moon and stars; clear skies show them fully.",
+  "localweather.configuration.cumulusClouds": "Cumulus clouds",
+  "localweather.configuration.cumulusClouds.tooltip": "Now and then a big white cumulus heap builds up in clear to fair weather, grows and falls apart again over about half a day."
 }

@@ -25,6 +25,7 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.IntValue DETAIL_DISTANCE;
 
     public static final ModConfigSpec.BooleanValue STORM_TOWERS;
+    public static final ModConfigSpec.BooleanValue CUMULUS_CLOUDS;
     public static final ModConfigSpec.IntValue TOWER_HEIGHT;
     public static final ModConfigSpec.BooleanValue STORM_DARKNESS;
     public static final ModConfigSpec.DoubleValue DARKNESS_STRENGTH;
@@ -82,6 +83,9 @@ public final class LocalWeatherClientConfig {
         b.comment("How storms look.").push("storms");
         STORM_TOWERS = b.comment("Thunderstorms build tall towers of cloud with a flat anvil on top.")
                 .define("stormTowers", true);
+        CUMULUS_CLOUDS = b.comment("Now and then a big white cumulus heap builds up in clear to fair weather, grows and falls apart",
+                        "again over about half a day.")
+                .define("cumulusClouds", true);
         TOWER_HEIGHT = b.comment("Height of the tallest thunderstorm towers above the cloud layer, in blocks. The anvil sits on top.")
                 .defineInRange("towerHeight", 240, 40, 800);
         STORM_DARKNESS = b.comment("Clouds inside storms are darker, so you can see storms from far away.")
@@ -157,6 +161,7 @@ public final class LocalWeatherClientConfig {
         h = 31 * h + CLOUD_DISTANCE.get();
         h = 31 * h + DETAIL_DISTANCE.get();
         h = 31 * h + Boolean.hashCode(STORM_TOWERS.get());
+        h = 31 * h + Boolean.hashCode(CUMULUS_CLOUDS.get());
         h = 31 * h + TOWER_HEIGHT.get();
         h = 31 * h + Boolean.hashCode(STORM_DARKNESS.get());
         h = 31 * h + Double.hashCode(DARKNESS_STRENGTH.get());
