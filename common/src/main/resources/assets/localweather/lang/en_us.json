@@ -108,5 +108,11 @@
   "localweather.configuration.lightning": "Lightning",
   "localweather.configuration.lightningBolts": "Lightning bolts",
   "localweather.configuration.lightningBolts.tooltip": "Lightning is drawn as Local Weather's jagged, branching bolts (real strikes and some of the flashes in far storms). Off: vanilla's bolt, and none in far storms.",
-  "localweather.configuration.rainShaftStrength.tooltip": "How dense the rain shafts look, 0.2 (faint) to 2 (heavy)."
+  "localweather.configuration.rainShaftStrength.tooltip": "How dense the rain shafts look, 0.2 (faint) to 2 (heavy).",
+  "localweather.configuration.thunderFollowsRenderDistance": "Thunder within render distance",
+  "localweather.configuration.thunderFollowsRenderDistance.tooltip": "Hear thunder only from storms within your render distance (Voxy's when it is installed, never past the clouds), so storms you can't see stay quiet. Off: Thunder distance.",
+  "localweather.configuration.thunderDistance": "Thunder distance",
+  "localweather.configuration.thunderDistance.tooltip": "How far away thunder is heard, in blocks, when Thunder within render distance is off.",
+  "localweather.configuration.thunderVolume": "Thunder volume",
+  "localweather.configuration.thunderVolume.tooltip": "Loudness of distant thunder, 0 to 1. Near lightning keeps vanilla's thunder."
 }

@@ -69,7 +69,7 @@ everything to the preset's values, and each setting can still be changed afterwa
 | cloudHeight | follow the server's cloud height, own offset (for servers without Local Weather) |
 | storms | storm towers and their height, storm darkness and its strength, thick rain clouds |
 | rain | no rain above the clouds, rain shafts (strength, distance), rain haze, rain fog |
-| lightning | flashes in the clouds, lightning bolts, distant thunder |
+| lightning | flashes in the clouds, lightning bolts, distant thunder: heard only within your render distance (Voxy's when installed) or a fixed distance, and its volume |
 | sky | sky gloom under storms, Better Clouds' rain tint, overcast sky, clouds hiding the sun and stars |
 
 Files from before 0.1.21 are moved to the new sections automatically, keeping their values (the old file stays as

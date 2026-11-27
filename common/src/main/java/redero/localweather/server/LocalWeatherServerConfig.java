@@ -221,7 +221,7 @@ public final class LocalWeatherServerConfig {
                     SHOWER_CHANCE, 0.5, THUNDERSTORM_CHANCE, 0.05, WIND_MIN, 0.4, WIND_MAX, 1.6));
             case STORMY -> values.putAll(Map.of(STORM_SIZE, 1.1, MAX_STORMS_NEARBY, 3, STORM_FREQUENCY, 2.0,
                     SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.35, WIND_MIN, 1.0, WIND_MAX, 3.5));
-            case HUGE_STORMS -> values.putAll(Map.of(STORM_SIZE, 1.6, STORM_LIFETIME, 1.5, MAX_STORMS_NEARBY, 3,
+            case HUGE_STORMS -> values.putAll(Map.of(STORM_SIZE, 1.6, STORM_LIFETIME, 1.5, MAX_STORMS_NEARBY, 2,
                     SHOWER_CHANCE, 0.3, THUNDERSTORM_CHANCE, 0.2, WIND_MIN, 1.0, WIND_MAX, 3.0));
             case CUSTOM -> values.clear();
             default -> {

@@ -27,6 +27,31 @@ public final class VoxyDepth {
     private VoxyDepth() {
     }
 
+    private static boolean distanceLooked;
+    @Nullable
+    private static Field voxyConfig, sectionDistance;
+
+    /**
+     * How far Voxy draws its terrain, in blocks, or 0 without Voxy. Its menu shows sectionRenderDistance x 16 chunks.
+     * shortcut: reads Voxy's config by reflection, re-check the field names when Voxy changes its config.
+     */
+    public static double renderDistance() {
+        try {
+            if (!distanceLooked) {
+                distanceLooked = true;
+                Class<?> config = Class.forName("me.cortex.voxy.client.config.VoxyConfig", false, VoxyDepth.class.getClassLoader());
+                voxyConfig = config.getField("CONFIG");
+                sectionDistance = config.getField("sectionRenderDistance");
+            }
+            if (sectionDistance == null) return 0.0;
+            Object config = voxyConfig.get(null);
+            return config == null ? 0.0 : sectionDistance.getFloat(config) * 16.0 * 16.0;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            sectionDistance = null;
+            return 0.0;
+        }
+    }
+
     @Nullable
     public static Snapshot current() {
         if (broken) return null;

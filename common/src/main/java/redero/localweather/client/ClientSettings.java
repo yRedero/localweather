@@ -19,6 +19,7 @@ public record ClientSettings(
         boolean noRainAboveClouds, boolean rainShafts, double rainShaftStrength, int rainShaftDistance,
         double rainHaze, double rainFog,
         boolean lightningFlashes, boolean lightningBolts, boolean distantThunder,
+        boolean thunderFollowsRenderDistance, int thunderDistance, double thunderVolume,
         double skyGloom, double globalRainTint, boolean overcastSky, boolean cloudsHideSky) {
 
     private static volatile ClientSettings current = read(ModConfigSpec.ConfigValue::getDefault);
@@ -43,6 +44,8 @@ public record ClientSettings(
                 (Boolean) value.apply(NO_RAIN_ABOVE_CLOUDS), (Boolean) value.apply(RAIN_SHAFTS), (Double) value.apply(RAIN_SHAFT_STRENGTH),
                 (Integer) value.apply(RAIN_SHAFT_DISTANCE), (Double) value.apply(RAIN_HAZE), (Double) value.apply(RAIN_FOG),
                 (Boolean) value.apply(LIGHTNING_FLASHES), (Boolean) value.apply(LIGHTNING_BOLTS), (Boolean) value.apply(DISTANT_THUNDER),
+                (Boolean) value.apply(THUNDER_FOLLOWS_RENDER_DISTANCE), (Integer) value.apply(THUNDER_DISTANCE),
+                (Double) value.apply(THUNDER_VOLUME),
                 (Double) value.apply(SKY_GLOOM), (Double) value.apply(GLOBAL_TINT), (Boolean) value.apply(OVERCAST_SKY),
                 (Boolean) value.apply(CLOUDS_HIDE_SKY));
     }

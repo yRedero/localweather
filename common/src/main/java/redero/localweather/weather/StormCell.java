@@ -16,7 +16,7 @@ public final class StormCell {
     /** How far the outline is pushed in or out, as a share of the radius. */
     private static final double WARP = 0.25;
     /** A storm's weather system: clouds start building this many radii out, well before the rain. */
-    private static final float CLOUD_REACH = 2.6F;
+    private static final float CLOUD_REACH = 2.0F;
 
     public final int id;
     public final CellType type;
@@ -129,7 +129,7 @@ public final class StormCell {
     public float cloudAtDistance(double d, int aheadTicks) {
         d /= CLOUD_REACH;
         if (d >= 1.0) return 0.0F;
-        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.2F, 1.0F, (float) d));
+        return intensity * envelope(aheadTicks) * (1.0F - smoothstep(0.3F, 1.0F, (float) d));
     }
 
     public float thunderAtDistance(double d, int aheadTicks) {

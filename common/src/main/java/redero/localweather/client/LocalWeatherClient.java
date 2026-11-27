@@ -58,9 +58,9 @@ public final class LocalWeatherClient {
             return;
         }
         double windSpeed = Math.sqrt(weather.windX() * weather.windX() + weather.windZ() * weather.windZ()) * 20.0;
-        lines.add(String.format(Locale.ROOT, "[Local Weather] rain %.2f thunder %.2f | %d cells | wind %.1f b/s %s",
+        lines.add(String.format(Locale.ROOT, "[Local Weather] rain %.2f thunder %.2f | %d cells | wind %.1f b/s %s | thunder heard %.0fb",
                 weather.cameraRain(), weather.cameraThunder(), weather.cells().size(),
-                windSpeed, compass(weather.windX(), weather.windZ())));
+                windSpeed, compass(weather.windX(), weather.windZ()), LightningFlashes.thunderRange(ClientSettings.get())));
 
         int ahead = weather.aheadTicks();
         weather.cells().stream()

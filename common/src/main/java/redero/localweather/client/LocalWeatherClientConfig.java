@@ -52,6 +52,9 @@ public final class LocalWeatherClientConfig {
     public static final ModConfigSpec.BooleanValue LIGHTNING_FLASHES;
     public static final ModConfigSpec.BooleanValue LIGHTNING_BOLTS;
     public static final ModConfigSpec.BooleanValue DISTANT_THUNDER;
+    public static final ModConfigSpec.BooleanValue THUNDER_FOLLOWS_RENDER_DISTANCE;
+    public static final ModConfigSpec.IntValue THUNDER_DISTANCE;
+    public static final ModConfigSpec.DoubleValue THUNDER_VOLUME;
 
     public static final ModConfigSpec.DoubleValue SKY_GLOOM;
     public static final ModConfigSpec.DoubleValue GLOBAL_TINT;
@@ -144,6 +147,13 @@ public final class LocalWeatherClientConfig {
         DISTANT_THUNDER = add(b, "lightning", b.comment("Thunder rumbles after flashes in far storms, from their direction, later and quieter the",
                         "further away they are.")
                 .define("distantThunder", true));
+        THUNDER_FOLLOWS_RENDER_DISTANCE = add(b, "lightning", b.comment("Hear thunder only from storms within your render distance (Voxy's when it is",
+                        "installed, never past the clouds), so storms you can't see stay quiet. Off: thunderDistance below.")
+                .define("thunderFollowsRenderDistance", true));
+        THUNDER_DISTANCE = add(b, "lightning", b.comment("How far away thunder is heard, in blocks, when thunderFollowsRenderDistance is off.")
+                .defineInRange("thunderDistance", 2048, 256, 8192));
+        THUNDER_VOLUME = add(b, "lightning", b.comment("Loudness of distant thunder, 0 to 1. Near lightning keeps vanilla's thunder.")
+                .defineInRange("thunderVolume", 0.8, 0.0, 1.0));
         b.pop();
 
         section(b, "sky", "Sky and light.");

@@ -26,8 +26,6 @@ public final class LightningFlashes {
     private static final float CLOUD_FLASH_CHANCE = 0.012F;
     /** Sound travels about this many blocks per tick (340 m/s). */
     private static final float SOUND_SPEED = 17.0F;
-    /** Thunder from flashes further than this isn't heard. */
-    private static final double THUNDER_RANGE = 6000.0;
 
     private static final List<Flash> FLASHES = new ArrayList<>();
     private static final RandomSource RANDOM = RandomSource.create();
@@ -105,6 +103,7 @@ public final class LightningFlashes {
         ticks++;
         FLASHES.removeIf(flash -> flash.finished(ticks));
         if (!enabled()) return;
+        double visible = ClientSettings.get().cloudDistance();
         for (StormCell cell : cells) {
             float strength = cell.thunder * cell.envelope(aheadTicks);
             if (strength < 0.4F || RANDOM.nextFloat() > CLOUD_FLASH_CHANCE * strength * (TEST ? 8.0F : 1.0F)) continue;
@@ -113,6 +112,8 @@ public final class LightningFlashes {
             double x = cell.centerX(aheadTicks) + Math.cos(angle) * distance;
             double z = cell.centerZ(aheadTicks) + Math.sin(angle) * distance;
             double fromCamera = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
+            // Past the clouds nothing would light up; such flashes only took the slots of visible ones.
+            if (fromCamera > visible) continue;
             boolean ground = ClientSettings.get().lightningBolts() && fromCamera > BOLT_MIN_DISTANCE
                     && (TEST || RANDOM.nextFloat() < BOLT_CHANCE);
             add(x, z, 120.0F + RANDOM.nextFloat() * 220.0F, 0.6F + 0.5F * RANDOM.nextFloat(), ground, Double.NaN);
@@ -145,16 +146,30 @@ public final class LightningFlashes {
 
     /** Thunder rolls in after the flash from its direction, later and quieter the further away it is. */
     private static void thunderFrom(double x, double z, Entity camera) {
-        if (!ClientSettings.get().distantThunder()) return;
+        ClientSettings settings = ClientSettings.get();
+        if (!settings.distantThunder()) return;
+        double range = thunderRange(settings);
         double distance = Math.sqrt(Mth.square(x - camera.getX()) + Mth.square(z - camera.getZ()));
-        if (distance > THUNDER_RANGE) return;
-        float volume = (float) (1.0 - distance / THUNDER_RANGE) * 0.9F;
+        if (distance > range) return;
+        // Fades faster than linearly: the far edge is a faint rumble, not a third of a nearby crack.
+        double near = 1.0 - distance / range;
+        float volume = (float) (near * near * settings.thunderVolume());
+        if (volume < 0.02F) return;
         float pitch = 0.55F + RANDOM.nextFloat() * 0.3F;
         int delay = (int) (distance / SOUND_SPEED);
         // From the storm's direction, at the height of its clouds.
         double base = ClientWeather.cloudBase(camera.level());
         double y = Double.isNaN(base) ? camera.getY() + 100.0 : base;
         Minecraft.getInstance().getSoundManager().playDelayed(new RollingThunder(x, y, z, volume, pitch), delay);
+    }
+
+    /** How far thunder carries: the render distance (vanilla's or Voxy's, the further) up to the clouds, or fixed. */
+    static double thunderRange(ClientSettings settings) {
+        if (!settings.thunderFollowsRenderDistance()) return settings.thunderDistance();
+        Minecraft mc = Minecraft.getInstance();
+        double render = Math.max(mc.options.getEffectiveRenderDistance() * 16.0,
+                redero.localweather.client.betterclouds.VoxyDepth.renderDistance());
+        return Mth.clamp(render, 256.0, settings.cloudDistance());
     }
 
     /**
